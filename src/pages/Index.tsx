@@ -8,6 +8,13 @@ const sampleTimeSeriesData = Array.from({ length: 20 }, (_, i) => ({
   value: Math.floor(Math.random() * 100),
 }));
 
+// Sample shot data with confidence scores
+const sampleShotData = Array.from({ length: 20 }, (_, i) => ({
+  time: `${i}:00`,
+  value: Math.floor(Math.random() * 100),
+  confidence: Math.random() * 0.3 + 0.7, // 70-100% confidence
+}));
+
 const Index = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -33,26 +40,28 @@ const Index = () => {
             value={45}
             unit="passes"
             icon={<Repeat className="h-4 w-4" />}
+            subtitle="92% confidence"
           />
           <MetricCard
             title="Shots on Target"
             value={3}
             unit="shots"
             icon={<Target className="h-4 w-4" />}
+            subtitle="95% confidence"
           />
         </div>
 
         {/* Performance Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <PerformanceChart
-            title="Steps Over Time"
+            title="Movement Intensity"
             data={sampleTimeSeriesData}
             dataKey="value"
             color="#0F766E"
           />
           <PerformanceChart
-            title="Ball Touches Frequency"
-            data={sampleTimeSeriesData}
+            title="Shot Power Analysis"
+            data={sampleShotData}
             dataKey="value"
             color="#EAB308"
           />
@@ -60,14 +69,17 @@ const Index = () => {
 
         {/* Training Notes */}
         <div className="mt-8 bg-white p-6 rounded-lg shadow-lg">
-          <h2 className="text-xl font-semibold text-secondary mb-4">Training Model Requirements</h2>
+          <h2 className="text-xl font-semibold text-secondary mb-4">Model Training Requirements</h2>
           <div className="space-y-2 text-gray-600">
-            <p>To accurately track these metrics, you would need:</p>
+            <p>Current model training specifications:</p>
             <ul className="list-disc list-inside space-y-1">
               <li>Accelerometer data at 100+ Hz sampling rate</li>
-              <li>Machine learning model trained on labeled movement patterns</li>
-              <li>Ground truth data from video analysis for model training</li>
-              <li>Multiple sensors for improved accuracy (ankle, shin, cleats)</li>
+              <li>Gyroscope data for rotation detection</li>
+              <li>Multiple sensor positions (ankle, shin, cleats)</li>
+              <li>Video analysis for ground truth labeling</li>
+              <li>Impact force threshold: >5G for shots, 2-4G for passes</li>
+              <li>Angular velocity patterns analysis</li>
+              <li>Minimum 1000 labeled examples per action type</li>
             </ul>
           </div>
         </div>
