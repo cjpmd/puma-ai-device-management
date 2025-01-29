@@ -1,4 +1,4 @@
-import { Activity, FootPrints, Target, Repeat } from "lucide-react";
+import { Activity, Footprints, Target, Repeat } from "lucide-react";
 import MetricCard from "@/components/MetricCard";
 import PerformanceChart from "@/components/PerformanceChart";
 
@@ -20,7 +20,7 @@ const Index = () => {
             title="Total Steps"
             value={8432}
             unit="steps"
-            icon={<FootPrints className="h-4 w-4" />}
+            icon={<Footprints className="h-4 w-4" />}
           />
           <MetricCard
             title="Ball Touches"
