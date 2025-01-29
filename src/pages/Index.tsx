@@ -77,7 +77,7 @@ const Index = () => {
               <li>Gyroscope data for rotation detection</li>
               <li>Multiple sensor positions (ankle, shin, cleats)</li>
               <li>Video analysis for ground truth labeling</li>
-              <li>Impact force threshold: >5G for shots, 2-4G for passes</li>
+              <li>Impact force threshold: {'>'}5G for shots, 2-4G for passes</li>
               <li>Angular velocity patterns analysis</li>
               <li>Minimum 1000 labeled examples per action type</li>
             </ul>
