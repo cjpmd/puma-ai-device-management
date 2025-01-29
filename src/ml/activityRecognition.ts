@@ -34,14 +34,18 @@ export function createModel(): tf.LayersModel {
     returnSequences: true
   }));
   
-  model.add(tf.layers.dropout(0.2));
+  model.add(tf.layers.dropout({
+    rate: 0.2
+  }));
   
   model.add(tf.layers.lstm({
     units: 32,
     returnSequences: false
   }));
   
-  model.add(tf.layers.dropout(0.2));
+  model.add(tf.layers.dropout({
+    rate: 0.2
+  }));
 
   // Dense layers for classification
   model.add(tf.layers.dense({
@@ -106,19 +110,31 @@ export async function trainModel(
     example.label === 'shot' ? [1, 0] : [0, 1]
   );
 
-  // Convert to tensors
-  const xDataset = tf.data.array(xs);
-  const yDataset = tf.data.array(ys);
+  // Split into training and validation sets
+  const splitIndex = Math.floor(trainingData.length * (1 - validationSplit));
+  const trainingXs = xs.slice(0, splitIndex);
+  const trainingYs = ys.slice(0, splitIndex);
+  const validationXs = xs.slice(splitIndex);
+  const validationYs = ys.slice(splitIndex);
 
-  // Zip features and labels together
-  const dataset = tf.data.zip({xs: xDataset, ys: yDataset})
-    .shuffle(trainingData.length)
+  // Convert to tensors
+  const trainingXDataset = tf.data.array(trainingXs);
+  const trainingYDataset = tf.data.array(trainingYs);
+  const validationXDataset = tf.data.array(validationXs);
+  const validationYDataset = tf.data.array(validationYs);
+
+  // Create training and validation datasets
+  const trainingDataset = tf.data.zip({xs: trainingXDataset, ys: trainingYDataset})
+    .shuffle(trainingXs.length)
+    .batch(MODEL_CONFIG.batchSize);
+
+  const validationDataset = tf.data.zip({xs: validationXDataset, ys: validationYDataset})
     .batch(MODEL_CONFIG.batchSize);
 
   // Train the model
-  return await model.fitDataset(dataset, {
+  return await model.fitDataset(trainingDataset, {
     epochs: MODEL_CONFIG.epochs,
-    validationSplit,
+    validationData: validationDataset,
     callbacks: {
       onEpochEnd: async (epoch, logs) => {
         console.log(`Epoch ${epoch + 1}: loss = ${logs?.loss.toFixed(4)}, accuracy = ${logs?.acc.toFixed(4)}`);
