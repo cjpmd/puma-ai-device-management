@@ -1,6 +1,7 @@
 import { Activity, Footprints, Target, Repeat } from "lucide-react";
 import MetricCard from "@/components/MetricCard";
 import PerformanceChart from "@/components/PerformanceChart";
+import MLTrainingManager from "@/components/MLTrainingManager";
 
 // Sample data - this would come from your sensor/database in a real implementation
 const sampleTimeSeriesData = Array.from({ length: 20 }, (_, i) => ({
@@ -21,6 +22,11 @@ const Index = () => {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-secondary mb-8">Player Performance Dashboard</h1>
         
+        {/* ML Training Section */}
+        <div className="mb-8">
+          <MLTrainingManager />
+        </div>
+
         {/* Current Session Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <MetricCard
