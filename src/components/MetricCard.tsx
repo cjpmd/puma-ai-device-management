@@ -5,9 +5,10 @@ interface MetricCardProps {
   value: number;
   unit?: string;
   icon?: React.ReactNode;
+  subtitle?: string;
 }
 
-const MetricCard = ({ title, value, unit, icon }: MetricCardProps) => {
+const MetricCard = ({ title, value, unit, icon, subtitle }: MetricCardProps) => {
   return (
     <Card className="bg-white shadow-lg">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -21,6 +22,7 @@ const MetricCard = ({ title, value, unit, icon }: MetricCardProps) => {
           {value}
           {unit && <span className="ml-1 text-sm text-muted-foreground">{unit}</span>}
         </div>
+        {subtitle && <div className="text-sm text-muted-foreground mt-1">{subtitle}</div>}
       </CardContent>
     </Card>
   );
