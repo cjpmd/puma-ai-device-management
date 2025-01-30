@@ -2,6 +2,7 @@ import { Activity, Footprints, Target, Repeat } from "lucide-react";
 import MetricCard from "@/components/MetricCard";
 import PerformanceChart from "@/components/PerformanceChart";
 import MLTrainingManager from "@/components/MLTrainingManager";
+import PlayerMovementMap from "@/components/PlayerMovementMap";
 
 // Sample data - this would come from your sensor/database in a real implementation
 const sampleTimeSeriesData = Array.from({ length: 20 }, (_, i) => ({
@@ -57,8 +58,8 @@ const Index = () => {
           />
         </div>
 
-        {/* Performance Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Performance Charts and Map */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
           <PerformanceChart
             title="Movement Intensity"
             data={sampleTimeSeriesData}
@@ -71,6 +72,11 @@ const Index = () => {
             dataKey="value"
             color="#EAB308"
           />
+        </div>
+
+        {/* Player Movement Map */}
+        <div className="mt-8">
+          <PlayerMovementMap />
         </div>
 
         {/* Training Notes */}

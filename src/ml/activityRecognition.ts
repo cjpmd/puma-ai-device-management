@@ -14,6 +14,11 @@ export interface SensorLoggerData {
     z: number[];
     timestamps: number[];
   };
+  location?: {
+    latitude: number[];
+    longitude: number[];
+    timestamps: number[];
+  };
   // Add other sensor data types as needed
 }
 
@@ -23,6 +28,7 @@ export interface SensorData {
   accelerometer: number[][];  // [timestamp, x, y, z]
   gyroscope: number[][];     // [timestamp, x, y, z]
   impactForce: number[];     // Force in G's
+  gps?: number[][];         // [timestamp, latitude, longitude]
 }
 
 export interface TrainingExample {
@@ -51,6 +57,15 @@ export function validateSensorLoggerData(data: any): boolean {
     if (!accKeys.every(key => Array.isArray(data.gyroscope[key]))) {
       console.error("Invalid gyroscope data format");
       return false;
+    }
+
+    // Check GPS data if present
+    if (data.location) {
+      const gpsKeys = ['latitude', 'longitude', 'timestamps'];
+      if (!gpsKeys.every(key => Array.isArray(data.location[key]))) {
+        console.error("Invalid GPS data format");
+        return false;
+      }
     }
 
     // Check if arrays have same length
@@ -94,10 +109,19 @@ export function convertSensorLoggerData(data: SensorLoggerData): SensorData {
     Math.sqrt(x * x + y * y + z * z)
   );
 
+  // Convert GPS data if available
+  const gps = data.location ? 
+    data.location.timestamps.map((timestamp, i) => [
+      timestamp,
+      data.location.latitude[i],
+      data.location.longitude[i]
+    ]) : undefined;
+
   return {
     accelerometer,
     gyroscope,
-    impactForce
+    impactForce,
+    gps
   };
 }
 
