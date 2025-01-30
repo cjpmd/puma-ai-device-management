@@ -19,21 +19,22 @@ interface AppleWatchGyroData {
 }
 
 export const validateSensorLoggerData = (data: any[]): boolean => {
-  if (!Array.isArray(data)) return false;
-  
-  // Check if it's Apple Watch format
-  if (data[0]?.sensor === 'Gyroscope') {
-    return data.every(entry => 
-      typeof entry.x === 'string' &&
-      typeof entry.y === 'string' &&
-      typeof entry.z === 'string' &&
-      typeof entry.seconds_elapsed === 'string' &&
-      entry.sensor === 'Gyroscope'
-    );
+  if (!Array.isArray(data)) {
+    console.log('Data is not an array');
+    return false;
   }
   
-  // Add other format validations here if needed
-  return false;
+  // Check if it's Apple Watch format
+  return data.every(entry => 
+    typeof entry === 'object' &&
+    typeof entry.x === 'string' &&
+    typeof entry.y === 'string' &&
+    typeof entry.z === 'string' &&
+    typeof entry.seconds_elapsed === 'string' &&
+    typeof entry.sensor === 'string' &&
+    entry.sensor === 'Gyroscope' &&
+    typeof entry.time === 'string'
+  );
 };
 
 export const convertSensorLoggerData = (data: AppleWatchGyroData[]): number[][] => {
