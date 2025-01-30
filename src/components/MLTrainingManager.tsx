@@ -4,12 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { createModel, trainModel, TrainingExample } from '@/ml/activityRecognition';
-import { Upload, Play, Pause } from 'lucide-react';
+import { Upload, Play, Pause, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const MLTrainingManager = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [currentLabel, setCurrentLabel] = useState<'shot' | 'pass'>('shot');
   const [trainingData, setTrainingData] = useState<TrainingExample[]>([]);
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
   const { toast } = useToast();
 
   const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,7 +38,7 @@ const MLTrainingManager = () => {
             setTrainingData(prev => [...prev, {
               sensorData: data,
               label: currentLabel,
-              videoTimestamp: Date.now()
+              videoTimestamp: recordingStartTime || Date.now()
             }]);
             toast({
               title: "Data added",
@@ -82,11 +84,22 @@ const MLTrainingManager = () => {
   };
 
   const toggleRecording = () => {
+    if (!isRecording) {
+      // Starting a new recording session
+      setRecordingStartTime(Date.now());
+      toast({
+        title: "Recording started",
+        description: "Start your video recording now and perform the selected action.",
+      });
+    } else {
+      // Stopping the recording session
+      setRecordingStartTime(null);
+      toast({
+        title: "Recording stopped",
+        description: "Upload your video and sensor data files for this session.",
+      });
+    }
     setIsRecording(!isRecording);
-    toast({
-      title: isRecording ? "Recording stopped" : "Recording started",
-      description: `Currently recording ${currentLabel} actions.`,
-    });
   };
 
   return (
@@ -95,6 +108,14 @@ const MLTrainingManager = () => {
         <CardTitle>ML Training Manager</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            For accurate training data, start your video recording and click "Start Recording" at the same time.
+            When finished, click "Stop Recording" and upload both the video and sensor data files.
+          </AlertDescription>
+        </Alert>
+
         <div className="space-y-2">
           <h3 className="text-sm font-medium">Upload Training Data</h3>
           <div className="flex gap-4">
@@ -105,6 +126,7 @@ const MLTrainingManager = () => {
                 accept="video/*"
                 onChange={handleVideoUpload}
                 className="cursor-pointer"
+                disabled={isRecording}
               />
             </div>
             <div className="flex-1">
@@ -114,6 +136,7 @@ const MLTrainingManager = () => {
                 accept=".json"
                 onChange={handleSensorDataUpload}
                 className="cursor-pointer"
+                disabled={isRecording}
               />
             </div>
           </div>
@@ -125,12 +148,14 @@ const MLTrainingManager = () => {
             <Button
               variant={currentLabel === 'shot' ? 'default' : 'outline'}
               onClick={() => setCurrentLabel('shot')}
+              disabled={isRecording}
             >
               Shot
             </Button>
             <Button
               variant={currentLabel === 'pass' ? 'default' : 'outline'}
               onClick={() => setCurrentLabel('pass')}
+              disabled={isRecording}
             >
               Pass
             </Button>
