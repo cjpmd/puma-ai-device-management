@@ -56,7 +56,9 @@ export const createModel = () => {
     returnSequences: true
   }));
   
-  model.add(tf.layers.dropout(0.2));
+  model.add(tf.layers.dropout({
+    rate: 0.2
+  }));
   
   model.add(tf.layers.lstm({
     units: 32,
@@ -88,10 +90,19 @@ export const trainModel = async (model: tf.Sequential, trainingData: TrainingExa
   });
 
   // Prepare training data
-  const xs = tf.ragged.stack(trainingData.map(example => 
-    tf.tensor2d(example.sensorData)
-  ));
-  
+  // First, pad all sequences to the same length
+  const maxLength = Math.max(...trainingData.map(ex => ex.sensorData.length));
+  const paddedData = trainingData.map(example => {
+    const data = example.sensorData;
+    if (data.length < maxLength) {
+      const padding = Array(maxLength - data.length).fill([0, 0, 0, 0]);
+      return [...data, ...padding];
+    }
+    return data;
+  });
+
+  // Convert to tensor
+  const xs = tf.tensor3d(paddedData);
   const ys = tf.tensor2d(oneHotLabels);
 
   // Train the model
