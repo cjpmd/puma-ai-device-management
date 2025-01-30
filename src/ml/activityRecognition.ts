@@ -1,6 +1,24 @@
 import * as tf from '@tensorflow/tfjs';
 
-// Define the shape of our input data
+// Define the shape of Sensor Logger data
+export interface SensorLoggerData {
+  accelerometer: {
+    x: number[];
+    y: number[];
+    z: number[];
+    timestamps: number[];
+  };
+  gyroscope: {
+    x: number[];
+    y: number[];
+    z: number[];
+    timestamps: number[];
+  };
+  // Add other sensor data types as needed
+}
+
+export type ActivityType = 'shot' | 'pass' | 'dribble' | 'touch' | 'no_possession';
+
 export interface SensorData {
   accelerometer: number[][];  // [timestamp, x, y, z]
   gyroscope: number[][];     // [timestamp, x, y, z]
@@ -9,11 +27,80 @@ export interface SensorData {
 
 export interface TrainingExample {
   sensorData: SensorData;
-  label: 'shot' | 'pass';  // The ground truth label
-  videoTimestamp: number;  // For synchronization with video data
+  label: ActivityType;
+  videoTimestamp: number;
+  duration?: number;  // Duration of the activity in milliseconds
 }
 
-// Model configuration
+export function validateSensorLoggerData(data: any): boolean {
+  try {
+    // Check if data has required properties
+    if (!data.accelerometer || !data.gyroscope) {
+      console.error("Missing accelerometer or gyroscope data");
+      return false;
+    }
+
+    // Check if accelerometer data has required properties
+    const accKeys = ['x', 'y', 'z', 'timestamps'];
+    if (!accKeys.every(key => Array.isArray(data.accelerometer[key]))) {
+      console.error("Invalid accelerometer data format");
+      return false;
+    }
+
+    // Check if gyroscope data has required properties
+    if (!accKeys.every(key => Array.isArray(data.gyroscope[key]))) {
+      console.error("Invalid gyroscope data format");
+      return false;
+    }
+
+    // Check if arrays have same length
+    const accLength = data.accelerometer.timestamps.length;
+    if (!accKeys.every(key => data.accelerometer[key].length === accLength)) {
+      console.error("Inconsistent accelerometer data lengths");
+      return false;
+    }
+
+    const gyroLength = data.gyroscope.timestamps.length;
+    if (!accKeys.every(key => data.gyroscope[key].length === gyroLength)) {
+      console.error("Inconsistent gyroscope data lengths");
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error validating sensor data:", error);
+    return false;
+  }
+}
+
+// Convert Sensor Logger format to our internal format
+export function convertSensorLoggerData(data: SensorLoggerData): SensorData {
+  const accelerometer = data.accelerometer.timestamps.map((timestamp, i) => [
+    timestamp,
+    data.accelerometer.x[i],
+    data.accelerometer.y[i],
+    data.accelerometer.z[i]
+  ]);
+
+  const gyroscope = data.gyroscope.timestamps.map((timestamp, i) => [
+    timestamp,
+    data.gyroscope.x[i],
+    data.gyroscope.y[i],
+    data.gyroscope.z[i]
+  ]);
+
+  // Calculate impact force from accelerometer data
+  const impactForce = accelerometer.map(([_, x, y, z]) => 
+    Math.sqrt(x * x + y * y + z * z)
+  );
+
+  return {
+    accelerometer,
+    gyroscope,
+    impactForce
+  };
+}
+
 const MODEL_CONFIG = {
   sequenceLength: 100,  // Number of sensor readings to consider (100Hz = 1 second)
   numFeatures: 7,      // 3 accel + 3 gyro + 1 impact force

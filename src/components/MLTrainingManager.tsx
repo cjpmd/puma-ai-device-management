@@ -3,15 +3,26 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { createModel, trainModel, TrainingExample } from '@/ml/activityRecognition';
+import { 
+  createModel, 
+  trainModel, 
+  TrainingExample, 
+  ActivityType,
+  validateSensorLoggerData,
+  convertSensorLoggerData
+} from '@/ml/activityRecognition';
 import { Upload, Play, Pause, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 
 const MLTrainingManager = () => {
   const [isRecording, setIsRecording] = useState(false);
-  const [currentLabel, setCurrentLabel] = useState<'shot' | 'pass'>('shot');
+  const [currentLabel, setCurrentLabel] = useState<ActivityType>('pass');
   const [trainingData, setTrainingData] = useState<TrainingExample[]>([]);
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
+  const [possessionStartTime, setPossessionStartTime] = useState<number | null>(null);
+  const [totalPossessionTime, setTotalPossessionTime] = useState(0);
   const { toast } = useToast();
 
   const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -19,10 +30,8 @@ const MLTrainingManager = () => {
     if (file) {
       toast({
         title: "Video uploaded",
-        description: "Video file has been uploaded successfully.",
+        description: "Video file has been uploaded successfully. Make sure to label activities in your video recording software with timestamps.",
       });
-      // Here you would process the video file
-      // This would typically involve sending it to a server
     }
   };
 
@@ -33,28 +42,61 @@ const MLTrainingManager = () => {
       reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target?.result as string);
-          // Validate data format
-          if (data.accelerometer && data.gyroscope && data.impactForce) {
+          if (validateSensorLoggerData(data)) {
+            const convertedData = convertSensorLoggerData(data);
             setTrainingData(prev => [...prev, {
-              sensorData: data,
+              sensorData: convertedData,
               label: currentLabel,
-              videoTimestamp: recordingStartTime || Date.now()
+              videoTimestamp: recordingStartTime || Date.now(),
+              duration: currentLabel !== 'no_possession' ? Date.now() - (recordingStartTime || Date.now()) : undefined
             }]);
             toast({
               title: "Data added",
-              description: "Sensor data has been added to training set.",
+              description: "Sensor data has been validated and added to training set.",
+            });
+          } else {
+            toast({
+              title: "Error",
+              description: "Invalid Sensor Logger data format",
+              variant: "destructive",
             });
           }
         } catch (error) {
           toast({
             title: "Error",
-            description: "Invalid sensor data format",
+            description: "Failed to parse sensor data",
             variant: "destructive",
           });
         }
       };
       reader.readAsText(file);
     }
+  };
+
+  const toggleRecording = () => {
+    if (!isRecording) {
+      const startTime = Date.now();
+      setRecordingStartTime(startTime);
+      if (currentLabel !== 'no_possession') {
+        setPossessionStartTime(startTime);
+      }
+      toast({
+        title: "Recording started",
+        description: "Start your video recording now and perform the selected action. Label timestamps in your video recording software.",
+      });
+    } else {
+      setRecordingStartTime(null);
+      if (possessionStartTime) {
+        const possessionDuration = Date.now() - possessionStartTime;
+        setTotalPossessionTime(prev => prev + possessionDuration);
+        setPossessionStartTime(null);
+      }
+      toast({
+        title: "Recording stopped",
+        description: "Upload your video and sensor data files for this session.",
+      });
+    }
+    setIsRecording(!isRecording);
   };
 
   const startTraining = async () => {
@@ -83,25 +125,6 @@ const MLTrainingManager = () => {
     }
   };
 
-  const toggleRecording = () => {
-    if (!isRecording) {
-      // Starting a new recording session
-      setRecordingStartTime(Date.now());
-      toast({
-        title: "Recording started",
-        description: "Start your video recording now and perform the selected action.",
-      });
-    } else {
-      // Stopping the recording session
-      setRecordingStartTime(null);
-      toast({
-        title: "Recording stopped",
-        description: "Upload your video and sensor data files for this session.",
-      });
-    }
-    setIsRecording(!isRecording);
-  };
-
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
@@ -112,7 +135,7 @@ const MLTrainingManager = () => {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             For accurate training data, start your video recording and click "Start Recording" at the same time.
-            When finished, click "Stop Recording" and upload both the video and sensor data files.
+            Label activities in your video recording software with timestamps. Upload both video and Sensor Logger data files when finished.
           </AlertDescription>
         </Alert>
 
@@ -130,7 +153,7 @@ const MLTrainingManager = () => {
               />
             </div>
             <div className="flex-1">
-              <label className="block text-sm mb-2">Sensor Data (JSON)</label>
+              <label className="block text-sm mb-2">Sensor Logger Data (JSON)</label>
               <Input
                 type="file"
                 accept=".json"
@@ -143,22 +166,25 @@ const MLTrainingManager = () => {
         </div>
 
         <div className="space-y-2">
-          <h3 className="text-sm font-medium">Live Recording</h3>
+          <h3 className="text-sm font-medium">Activity Type</h3>
+          <RadioGroup
+            value={currentLabel}
+            onValueChange={(value: ActivityType) => setCurrentLabel(value)}
+            className="flex flex-wrap gap-4"
+            disabled={isRecording}
+          >
+            {['pass', 'shot', 'dribble', 'touch', 'no_possession'].map((activity) => (
+              <div key={activity} className="flex items-center space-x-2">
+                <RadioGroupItem value={activity} id={activity} />
+                <Label htmlFor={activity}>{activity.replace('_', ' ')}</Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </div>
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">Recording Controls</h3>
           <div className="flex gap-4 items-center">
-            <Button
-              variant={currentLabel === 'shot' ? 'default' : 'outline'}
-              onClick={() => setCurrentLabel('shot')}
-              disabled={isRecording}
-            >
-              Shot
-            </Button>
-            <Button
-              variant={currentLabel === 'pass' ? 'default' : 'outline'}
-              onClick={() => setCurrentLabel('pass')}
-              disabled={isRecording}
-            >
-              Pass
-            </Button>
             <Button
               variant={isRecording ? 'destructive' : 'default'}
               onClick={toggleRecording}
@@ -166,6 +192,9 @@ const MLTrainingManager = () => {
               {isRecording ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
               {isRecording ? 'Stop Recording' : 'Start Recording'}
             </Button>
+            <div className="text-sm">
+              Total possession time: {Math.round(totalPossessionTime / 1000)}s
+            </div>
           </div>
         </div>
 
