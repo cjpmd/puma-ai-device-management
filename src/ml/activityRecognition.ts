@@ -2,7 +2,7 @@ import * as tf from '@tensorflow/tfjs';
 
 export type ActivityType = 'pass' | 'shot' | 'dribble' | 'touch' | 'no_possession';
 
-export interface AppleWatchGyroData {
+export interface SensorData {
   x: string;
   y: string;
   z: string;
@@ -26,7 +26,6 @@ export const validateSensorLoggerData = (data: any[]): boolean => {
     return false;
   }
   
-  // Check if array is empty
   if (data.length === 0) {
     console.log('Data array is empty');
     return false;
@@ -34,54 +33,54 @@ export const validateSensorLoggerData = (data: any[]): boolean => {
 
   console.log('First entry:', data[0]);
   
-  // Check if it's Apple Watch format by validating the first entry and sampling other entries
-  const sampleSize = Math.min(100, data.length); // Check up to 100 entries
-  const sampleStep = Math.floor(data.length / sampleSize);
-  
-  for (let i = 0; i < data.length; i += sampleStep) {
-    const entry = data[i];
+  // Filter for valid sensor entries
+  const validSensors = ['Gyroscope', 'GyroscopeUncalibrated', 'Accelerometer', 'AccelerometerUncalibrated'];
+  const validEntries = data.filter(entry => {
     if (!entry || typeof entry !== 'object') {
-      console.log(`Entry ${i} is not an object:`, entry);
       return false;
     }
-    
-    // Check required fields exist and are strings
-    const requiredFields = ['x', 'y', 'z', 'seconds_elapsed', 'sensor', 'time'];
+
+    // Check if it's a valid sensor type
+    if (!validSensors.includes(entry.sensor)) {
+      console.log(`Skipping entry with sensor type: ${entry.sensor}`);
+      return false;
+    }
+
+    // Validate required fields
+    const requiredFields = ['x', 'y', 'z', 'seconds_elapsed', 'time'];
     for (const field of requiredFields) {
-      if (typeof entry[field] !== 'string') {
-        // Skip entries with missing or invalid fields
-        console.log(`Entry ${i}: ${field} is not a string:`, entry[field]);
-        continue;
+      if (typeof entry[field] !== 'string' || entry[field] === undefined) {
+        console.log(`Entry missing or invalid ${field}:`, entry[field]);
+        return false;
       }
       
-      // Additional validation for numeric fields
+      // Validate numeric fields
       if (['x', 'y', 'z', 'seconds_elapsed'].includes(field)) {
         const value = parseFloat(entry[field]);
         if (isNaN(value)) {
-          console.log(`Entry ${i}: ${field} is not a valid number:`, entry[field]);
-          continue;
+          console.log(`Invalid numeric value for ${field}:`, entry[field]);
+          return false;
         }
       }
     }
     
-    if (entry.sensor !== 'Gyroscope') {
-      console.log(`Entry ${i}: sensor is not 'Gyroscope':`, entry.sensor);
-      continue;
-    }
-  }
-  
-  // If we've made it here, enough valid entries exist to proceed
-  console.log('Data validated successfully');
-  return true;
+    return true;
+  });
+
+  console.log(`Found ${validEntries.length} valid entries out of ${data.length} total`);
+  return validEntries.length > 0;
 };
 
-export const convertSensorLoggerData = (data: AppleWatchGyroData[]): number[][] => {
-  return data.map(entry => [
-    parseFloat(entry.x),
-    parseFloat(entry.y),
-    parseFloat(entry.z),
-    parseFloat(entry.seconds_elapsed)
-  ]);
+export const convertSensorLoggerData = (data: SensorData[]): number[][] => {
+  // Filter for valid entries and convert to numeric arrays
+  return data
+    .filter(entry => ['Gyroscope', 'GyroscopeUncalibrated', 'Accelerometer', 'AccelerometerUncalibrated'].includes(entry.sensor))
+    .map(entry => [
+      parseFloat(entry.x),
+      parseFloat(entry.y),
+      parseFloat(entry.z),
+      parseFloat(entry.seconds_elapsed)
+    ]);
 };
 
 export const createModel = () => {
