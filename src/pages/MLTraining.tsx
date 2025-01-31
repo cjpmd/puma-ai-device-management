@@ -5,8 +5,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Database, BrainCircuit } from "lucide-react";
 
+interface TrainingStats {
+  totalExamples: {
+    pass: number;
+    shot: number;
+    dribble: number;
+    touch: number;
+    no_possession: number;
+  };
+  currentAccuracy: number;
+  epochsCompleted: number;
+  lastTrainingTime: string | null;
+}
+
 const MLTraining = () => {
-  const [trainingStats, setTrainingStats] = useState({
+  const [trainingStats, setTrainingStats] = useState<TrainingStats>({
     totalExamples: {
       pass: 0,
       shot: 0,
@@ -16,7 +29,7 @@ const MLTraining = () => {
     },
     currentAccuracy: 0,
     epochsCompleted: 0,
-    lastTrainingTime: null as string | null
+    lastTrainingTime: null
   });
 
   return (
@@ -85,7 +98,9 @@ const MLTraining = () => {
           </Card>
         </div>
 
-        <MLTrainingManager onTrainingProgress={(stats) => setTrainingStats(stats)} />
+        <MLTrainingManager 
+          onTrainingProgress={(stats: TrainingStats) => setTrainingStats(stats)} 
+        />
       </div>
     </div>
   );
