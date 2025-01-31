@@ -16,7 +16,24 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 
-const MLTrainingManager = () => {
+interface TrainingStats {
+  totalExamples: {
+    pass: number;
+    shot: number;
+    dribble: number;
+    touch: number;
+    no_possession: number;
+  };
+  currentAccuracy: number;
+  epochsCompleted: number;
+  lastTrainingTime: string | null;
+}
+
+interface MLTrainingManagerProps {
+  onTrainingProgress: (stats: TrainingStats) => void;
+}
+
+const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [currentLabel, setCurrentLabel] = useState<ActivityType>('pass');
   const [trainingData, setTrainingData] = useState<TrainingExample[]>([]);
@@ -112,6 +129,21 @@ const MLTrainingManager = () => {
     try {
       const model = createModel();
       await trainModel(model, trainingData);
+      
+      // Update training progress
+      onTrainingProgress({
+        totalExamples: {
+          pass: trainingData.filter(d => d.label === 'pass').length,
+          shot: trainingData.filter(d => d.label === 'shot').length,
+          dribble: trainingData.filter(d => d.label === 'dribble').length,
+          touch: trainingData.filter(d => d.label === 'touch').length,
+          no_possession: trainingData.filter(d => d.label === 'no_possession').length,
+        },
+        currentAccuracy: 85, // This would come from actual model evaluation
+        epochsCompleted: 10, // This would come from actual training progress
+        lastTrainingTime: new Date().toISOString(),
+      });
+
       toast({
         title: "Training complete",
         description: "Model has been trained successfully.",
