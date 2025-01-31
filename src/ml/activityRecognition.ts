@@ -9,6 +9,8 @@ export interface SensorData {
   seconds_elapsed: string;
   sensor: string;
   time: string;
+  latitude?: string;
+  longitude?: string;
 }
 
 export interface TrainingExample {
@@ -19,8 +21,6 @@ export interface TrainingExample {
 }
 
 export const validateSensorLoggerData = (data: any[]): boolean => {
-  console.log('Validating data:', data);
-  
   if (!Array.isArray(data)) {
     console.log('Data is not an array');
     return false;
@@ -33,20 +33,33 @@ export const validateSensorLoggerData = (data: any[]): boolean => {
 
   console.log('First entry:', data[0]);
   
-  // Filter for valid sensor entries
-  const validSensors = ['Gyroscope', 'GyroscopeUncalibrated', 'Accelerometer', 'AccelerometerUncalibrated'];
+  const validSensors = [
+    'Gyroscope', 
+    'GyroscopeUncalibrated', 
+    'Accelerometer', 
+    'AccelerometerUncalibrated',
+    'Pedometer',
+    'Location'
+  ];
+
   const validEntries = data.filter(entry => {
     if (!entry || typeof entry !== 'object') {
       return false;
     }
 
-    // Check if it's a valid sensor type
     if (!validSensors.includes(entry.sensor)) {
       console.log(`Skipping entry with sensor type: ${entry.sensor}`);
       return false;
     }
 
-    // Validate required fields
+    // Special handling for Location sensor
+    if (entry.sensor === 'Location') {
+      return typeof entry.latitude === 'string' && 
+             typeof entry.longitude === 'string' &&
+             typeof entry.time === 'string';
+    }
+
+    // For motion sensors
     const requiredFields = ['x', 'y', 'z', 'seconds_elapsed', 'time'];
     for (const field of requiredFields) {
       if (typeof entry[field] !== 'string' || entry[field] === undefined) {
@@ -54,7 +67,6 @@ export const validateSensorLoggerData = (data: any[]): boolean => {
         return false;
       }
       
-      // Validate numeric fields
       if (['x', 'y', 'z', 'seconds_elapsed'].includes(field)) {
         const value = parseFloat(entry[field]);
         if (isNaN(value)) {
@@ -72,9 +84,8 @@ export const validateSensorLoggerData = (data: any[]): boolean => {
 };
 
 export const convertSensorLoggerData = (data: SensorData[]): number[][] => {
-  // Filter for valid entries and convert to numeric arrays
   return data
-    .filter(entry => ['Gyroscope', 'GyroscopeUncalibrated', 'Accelerometer', 'AccelerometerUncalibrated'].includes(entry.sensor))
+    .filter(entry => entry.sensor !== 'Location' && entry.sensor !== 'Pedometer')
     .map(entry => [
       parseFloat(entry.x),
       parseFloat(entry.y),

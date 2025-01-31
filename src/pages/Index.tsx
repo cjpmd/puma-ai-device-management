@@ -1,92 +1,107 @@
 import { Activity, Footprints, Target, Repeat } from "lucide-react";
+import { useEffect, useState } from "react";
 import MetricCard from "@/components/MetricCard";
 import PerformanceChart from "@/components/PerformanceChart";
 import MLTrainingManager from "@/components/MLTrainingManager";
 import PlayerMovementMap from "@/components/PlayerMovementMap";
-
-// Sample data - this would come from your sensor/database in a real implementation
-const sampleTimeSeriesData = Array.from({ length: 20 }, (_, i) => ({
-  time: `${i}:00`,
-  value: Math.floor(Math.random() * 100),
-}));
-
-// Sample shot data with confidence scores
-const sampleShotData = Array.from({ length: 20 }, (_, i) => ({
-  time: `${i}:00`,
-  value: Math.floor(Math.random() * 100),
-  confidence: Math.random() * 0.3 + 0.7, // 70-100% confidence
-}));
+import { processRealTimeData, MetricAggregation } from "@/utils/sensorDataUtils";
+import { SensorData } from "@/ml/activityRecognition";
 
 const Index = () => {
+  const [metrics, setMetrics] = useState<MetricAggregation>({
+    totalSteps: 0,
+    ballTouches: 0,
+    successfulPasses: 0,
+    shotsOnTarget: 0,
+    confidence: 0
+  });
+  const [timeSeriesData, setTimeSeriesData] = useState<Array<{ time: string; value: number }>>([]);
+
+  useEffect(() => {
+    // In a real app, this would be replaced with WebSocket or Server-Sent Events
+    const interval = setInterval(() => {
+      // Simulate incoming sensor data
+      const mockData: SensorData[] = Array.from({ length: 10 }, (_, i) => ({
+        x: Math.random().toString(),
+        y: Math.random().toString(),
+        z: Math.random().toString(),
+        seconds_elapsed: i.toString(),
+        sensor: i % 2 === 0 ? 'Gyroscope' : 'Accelerometer',
+        time: new Date().toISOString()
+      }));
+
+      const { metrics: newMetrics, timeSeriesData: newTimeSeriesData } = processRealTimeData(mockData);
+      setMetrics(newMetrics);
+      setTimeSeriesData(prev => [...prev.slice(-50), ...newTimeSeriesData]);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-secondary mb-8">Player Performance Dashboard</h1>
         
-        {/* ML Training Section */}
         <div className="mb-8">
           <MLTrainingManager />
         </div>
 
-        {/* Current Session Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <MetricCard
             title="Total Steps"
-            value={8432}
+            value={metrics.totalSteps}
             unit="steps"
             icon={<Footprints className="h-4 w-4" />}
           />
           <MetricCard
             title="Ball Touches"
-            value={127}
+            value={metrics.ballTouches}
             unit="touches"
             icon={<Activity className="h-4 w-4" />}
           />
           <MetricCard
             title="Successful Passes"
-            value={45}
+            value={metrics.successfulPasses}
             unit="passes"
             icon={<Repeat className="h-4 w-4" />}
-            subtitle="92% confidence"
+            subtitle={`${(metrics.confidence * 100).toFixed(0)}% confidence`}
           />
           <MetricCard
             title="Shots on Target"
-            value={3}
+            value={metrics.shotsOnTarget}
             unit="shots"
             icon={<Target className="h-4 w-4" />}
             subtitle="95% confidence"
           />
         </div>
 
-        {/* Performance Charts and Map */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
           <PerformanceChart
             title="Movement Intensity"
-            data={sampleTimeSeriesData}
+            data={timeSeriesData}
             dataKey="value"
             color="#0F766E"
           />
           <PerformanceChart
             title="Shot Power Analysis"
-            data={sampleShotData}
+            data={timeSeriesData}
             dataKey="value"
             color="#EAB308"
           />
         </div>
 
-        {/* Player Movement Map */}
         <div className="mt-8">
           <PlayerMovementMap />
         </div>
 
-        {/* Training Notes */}
         <div className="mt-8 bg-white p-6 rounded-lg shadow-lg">
           <h2 className="text-xl font-semibold text-secondary mb-4">Model Training Requirements</h2>
           <div className="space-y-2 text-gray-600">
             <p>Current model training specifications:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Accelerometer data at 100+ Hz sampling rate</li>
-              <li>Gyroscope data for rotation detection</li>
+              <li>Multiple sensor support (Gyroscope, Accelerometer, GPS)</li>
+              <li>Real-time data processing and visualization</li>
               <li>Multiple sensor positions (ankle, shin, cleats)</li>
               <li>Video analysis for ground truth labeling</li>
               <li>Impact force threshold: {'>'}5G for shots, 2-4G for passes</li>
