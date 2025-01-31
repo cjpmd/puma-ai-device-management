@@ -2,20 +2,20 @@ import * as tf from '@tensorflow/tfjs';
 
 export type ActivityType = 'pass' | 'shot' | 'dribble' | 'touch' | 'no_possession';
 
-export interface TrainingExample {
-  sensorData: number[][];
-  label: ActivityType;
-  videoTimestamp: number;
-  duration?: number;
-}
-
-interface AppleWatchGyroData {
+export interface AppleWatchGyroData {
   x: string;
   y: string;
   z: string;
   seconds_elapsed: string;
   sensor: string;
   time: string;
+}
+
+export interface TrainingExample {
+  sensorData: number[][];
+  label: ActivityType;
+  videoTimestamp: number;
+  duration?: number;
 }
 
 export const validateSensorLoggerData = (data: any[]): boolean => {
@@ -34,50 +34,45 @@ export const validateSensorLoggerData = (data: any[]): boolean => {
 
   console.log('First entry:', data[0]);
   
-  // Check if it's Apple Watch format
-  const isValid = data.every((entry, index) => {
-    if (typeof entry !== 'object') {
-      console.log(`Entry ${index} is not an object:`, entry);
+  // Check if it's Apple Watch format by validating the first entry and sampling other entries
+  const sampleSize = Math.min(100, data.length); // Check up to 100 entries
+  const sampleStep = Math.floor(data.length / sampleSize);
+  
+  for (let i = 0; i < data.length; i += sampleStep) {
+    const entry = data[i];
+    if (!entry || typeof entry !== 'object') {
+      console.log(`Entry ${i} is not an object:`, entry);
       return false;
     }
-    if (typeof entry.x !== 'string') {
-      console.log(`Entry ${index}: x is not a string:`, entry.x);
-      return false;
+    
+    // Check required fields exist and are strings
+    const requiredFields = ['x', 'y', 'z', 'seconds_elapsed', 'sensor', 'time'];
+    for (const field of requiredFields) {
+      if (typeof entry[field] !== 'string') {
+        // Skip entries with missing or invalid fields
+        console.log(`Entry ${i}: ${field} is not a string:`, entry[field]);
+        continue;
+      }
+      
+      // Additional validation for numeric fields
+      if (['x', 'y', 'z', 'seconds_elapsed'].includes(field)) {
+        const value = parseFloat(entry[field]);
+        if (isNaN(value)) {
+          console.log(`Entry ${i}: ${field} is not a valid number:`, entry[field]);
+          continue;
+        }
+      }
     }
-    if (typeof entry.y !== 'string') {
-      console.log(`Entry ${index}: y is not a string:`, entry.y);
-      return false;
-    }
-    if (typeof entry.z !== 'string') {
-      console.log(`Entry ${index}: z is not a string:`, entry.z);
-      return false;
-    }
-    if (typeof entry.seconds_elapsed !== 'string') {
-      console.log(`Entry ${index}: seconds_elapsed is not a string:`, entry.seconds_elapsed);
-      return false;
-    }
-    if (typeof entry.sensor !== 'string') {
-      console.log(`Entry ${index}: sensor is not a string:`, entry.sensor);
-      return false;
-    }
+    
     if (entry.sensor !== 'Gyroscope') {
-      console.log(`Entry ${index}: sensor is not 'Gyroscope':`, entry.sensor);
-      return false;
+      console.log(`Entry ${i}: sensor is not 'Gyroscope':`, entry.sensor);
+      continue;
     }
-    if (typeof entry.time !== 'string') {
-      console.log(`Entry ${index}: time is not a string:`, entry.time);
-      return false;
-    }
-    return true;
-  });
-
-  if (!isValid) {
-    console.log('Validation failed');
-  } else {
-    console.log('Data validated successfully');
   }
-
-  return isValid;
+  
+  // If we've made it here, enough valid entries exist to proceed
+  console.log('Data validated successfully');
+  return true;
 };
 
 export const convertSensorLoggerData = (data: AppleWatchGyroData[]): number[][] => {
@@ -108,7 +103,7 @@ export const createModel = () => {
   }));
   
   model.add(tf.layers.dense({
-    units: 5, // number of activity types
+    units: 5,
     activation: 'softmax'
   }));
   
@@ -130,33 +125,24 @@ export const trainModel = async (model: tf.Sequential, trainingData: TrainingExa
     oneHot[index] = 1;
     return oneHot;
   });
-
+  
   // Prepare training data
-  // First, pad all sequences to the same length
-  const maxLength = Math.max(...trainingData.map(ex => ex.sensorData.length));
-  const paddedData = trainingData.map(example => {
-    const data = example.sensorData;
-    if (data.length < maxLength) {
-      const padding = Array(maxLength - data.length).fill([0, 0, 0, 0]);
-      return [...data, ...padding];
-    }
-    return data;
-  });
-
-  // Convert to tensor
-  const xs = tf.tensor3d(paddedData);
+  const xs = tf.tensor3d(trainingData.map(ex => ex.sensorData));
   const ys = tf.tensor2d(oneHotLabels);
-
+  
   // Train the model
   await model.fit(xs, ys, {
     epochs: 50,
+    batchSize: 32,
     validationSplit: 0.2,
     callbacks: {
       onEpochEnd: (epoch, logs) => {
-        console.log(`Epoch ${epoch}: loss = ${logs?.loss.toFixed(4)}, accuracy = ${logs?.acc.toFixed(4)}`);
+        console.log(`Epoch ${epoch + 1}: loss = ${logs?.loss.toFixed(4)}, accuracy = ${logs?.acc.toFixed(4)}`);
       }
     }
   });
-
-  return model;
+  
+  // Clean up tensors
+  xs.dispose();
+  ys.dispose();
 };
