@@ -19,22 +19,65 @@ interface AppleWatchGyroData {
 }
 
 export const validateSensorLoggerData = (data: any[]): boolean => {
+  console.log('Validating data:', data);
+  
   if (!Array.isArray(data)) {
     console.log('Data is not an array');
     return false;
   }
   
+  // Check if array is empty
+  if (data.length === 0) {
+    console.log('Data array is empty');
+    return false;
+  }
+
+  console.log('First entry:', data[0]);
+  
   // Check if it's Apple Watch format
-  return data.every(entry => 
-    typeof entry === 'object' &&
-    typeof entry.x === 'string' &&
-    typeof entry.y === 'string' &&
-    typeof entry.z === 'string' &&
-    typeof entry.seconds_elapsed === 'string' &&
-    typeof entry.sensor === 'string' &&
-    entry.sensor === 'Gyroscope' &&
-    typeof entry.time === 'string'
-  );
+  const isValid = data.every((entry, index) => {
+    if (typeof entry !== 'object') {
+      console.log(`Entry ${index} is not an object:`, entry);
+      return false;
+    }
+    if (typeof entry.x !== 'string') {
+      console.log(`Entry ${index}: x is not a string:`, entry.x);
+      return false;
+    }
+    if (typeof entry.y !== 'string') {
+      console.log(`Entry ${index}: y is not a string:`, entry.y);
+      return false;
+    }
+    if (typeof entry.z !== 'string') {
+      console.log(`Entry ${index}: z is not a string:`, entry.z);
+      return false;
+    }
+    if (typeof entry.seconds_elapsed !== 'string') {
+      console.log(`Entry ${index}: seconds_elapsed is not a string:`, entry.seconds_elapsed);
+      return false;
+    }
+    if (typeof entry.sensor !== 'string') {
+      console.log(`Entry ${index}: sensor is not a string:`, entry.sensor);
+      return false;
+    }
+    if (entry.sensor !== 'Gyroscope') {
+      console.log(`Entry ${index}: sensor is not 'Gyroscope':`, entry.sensor);
+      return false;
+    }
+    if (typeof entry.time !== 'string') {
+      console.log(`Entry ${index}: time is not a string:`, entry.time);
+      return false;
+    }
+    return true;
+  });
+
+  if (!isValid) {
+    console.log('Validation failed');
+  } else {
+    console.log('Data validated successfully');
+  }
+
+  return isValid;
 };
 
 export const convertSensorLoggerData = (data: AppleWatchGyroData[]): number[][] => {
@@ -49,8 +92,6 @@ export const convertSensorLoggerData = (data: AppleWatchGyroData[]): number[][] 
 export const createModel = () => {
   const model = tf.sequential();
   
-  // Input shape: [timesteps, features]
-  // Features: x, y, z acceleration, and time
   model.add(tf.layers.lstm({
     units: 64,
     inputShape: [null, 4],
