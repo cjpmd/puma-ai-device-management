@@ -50,7 +50,7 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
     if (file) {
       toast({
         title: "Video uploaded",
-        description: "Video file has been uploaded successfully. Make sure to label activities in your video recording software with timestamps.",
+        description: "Video file has been uploaded successfully. Make sure your video includes activity timestamps from VIA or similar software.",
       });
     }
   };
@@ -258,12 +258,12 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             Workflow: <br/>
-            1. Select the activity type you want to record (e.g., "pass" for multiple passes)<br/>
-            2. Click "Start Recording" and begin your video recording simultaneously<br/>
-            3. Perform multiple instances of the selected activity<br/>
-            4. Click "Stop Recording" when finished<br/>
-            5. Upload both your video recording and Sensor Logger data files<br/>
-            Make sure to label activities in your video recording software with timestamps.
+            1. Record sensor data using Sensor Logger on your Apple Watch<br/>
+            2. Record video separately on another device<br/>
+            3. Use VGG Image Annotator (VIA) or similar to add activity timestamps to your video<br/>
+            4. Select activity type and click "Start Recording" to begin a training session<br/>
+            5. Upload your annotated video and Sensor Logger JSON files<br/>
+            6. Click "Stop Recording" when uploads are complete
           </AlertDescription>
         </Alert>
 
@@ -271,7 +271,7 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
           <h3 className="text-sm font-medium">Upload Training Data</h3>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-sm mb-2">Video Recording</label>
+              <label className="block text-sm mb-2">Annotated Video Recording</label>
               <Input
                 type="file"
                 accept="video/*"
