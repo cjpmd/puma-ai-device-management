@@ -257,8 +257,13 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            For accurate training data, start your video recording and click "Start Recording" at the same time.
-            Label activities in your video recording software with timestamps. Upload both video and Sensor Logger data files when finished.
+            Workflow: <br/>
+            1. Select the activity type you want to record (e.g., "pass" for multiple passes)<br/>
+            2. Click "Start Recording" and begin your video recording simultaneously<br/>
+            3. Perform multiple instances of the selected activity<br/>
+            4. Click "Stop Recording" when finished<br/>
+            5. Upload both your video recording and Sensor Logger data files<br/>
+            Make sure to label activities in your video recording software with timestamps.
           </AlertDescription>
         </Alert>
 
