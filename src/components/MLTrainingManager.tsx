@@ -9,7 +9,8 @@ import {
   TrainingExample, 
   ActivityType,
   validateSensorLoggerData,
-  convertSensorLoggerData
+  convertSensorLoggerData,
+  SensorData
 } from '@/ml/activityRecognition';
 import { Upload, Play, Pause, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -62,16 +63,17 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
         try {
           const data = JSON.parse(e.target?.result as string);
           if (validateSensorLoggerData(data)) {
-            const convertedData = convertSensorLoggerData(data);
+            const rawData = data as SensorData[];
+            const convertedData = convertSensorLoggerData(rawData);
             
             // Store sensor recordings in Supabase
-            const sensorRecordings = convertedData.map(reading => ({
+            const sensorRecordings = rawData.map(reading => ({
               training_session_id: currentSessionId,
               sensor_type: reading.sensor,
-              x: reading.x,
-              y: reading.y,
-              z: reading.z,
-              timestamp: reading.time
+              x: parseFloat(reading.x),
+              y: parseFloat(reading.y),
+              z: parseFloat(reading.z),
+              timestamp: new Date(reading.time).getTime()
             }));
 
             const { error } = await supabase
