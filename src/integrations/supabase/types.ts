@@ -684,6 +684,121 @@ export type Database = {
           },
         ]
       }
+      ml_models: {
+        Row: {
+          accuracy: number
+          created_at: string | null
+          id: string
+          model_file_path: string | null
+          parameters: Json | null
+          training_date: string | null
+          updated_at: string | null
+          version: string
+        }
+        Insert: {
+          accuracy: number
+          created_at?: string | null
+          id?: string
+          model_file_path?: string | null
+          parameters?: Json | null
+          training_date?: string | null
+          updated_at?: string | null
+          version: string
+        }
+        Update: {
+          accuracy?: number
+          created_at?: string | null
+          id?: string
+          model_file_path?: string | null
+          parameters?: Json | null
+          training_date?: string | null
+          updated_at?: string | null
+          version?: string
+        }
+        Relationships: []
+      }
+      ml_training_sessions: {
+        Row: {
+          activity_type: string
+          created_at: string | null
+          device_id: number | null
+          duration: number | null
+          end_time: string | null
+          id: string
+          player_id: string | null
+          start_time: string
+          updated_at: string | null
+          video_timestamp: number | null
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string | null
+          device_id?: number | null
+          duration?: number | null
+          end_time?: string | null
+          id?: string
+          player_id?: string | null
+          start_time?: string
+          updated_at?: string | null
+          video_timestamp?: number | null
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string | null
+          device_id?: number | null
+          duration?: number | null
+          end_time?: string | null
+          id?: string
+          player_id?: string | null
+          start_time?: string
+          updated_at?: string | null
+          video_timestamp?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ml_training_sessions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ml_training_sessions_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "available_players_by_category"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ml_training_sessions_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "player_fixture_stats"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "ml_training_sessions_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "player_stats"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "ml_training_sessions_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ml_training_sessions_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "position_rankings"
+            referencedColumns: ["player_id"]
+          },
+        ]
+      }
       player_attributes: {
         Row: {
           abbreviation: string | null
@@ -1256,6 +1371,47 @@ export type Database = {
             columns: ["role_id"]
             isOneToOne: false
             referencedRelation: "role_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sensor_recordings: {
+        Row: {
+          created_at: string | null
+          id: string
+          sensor_type: string
+          timestamp: number
+          training_session_id: string | null
+          x: number | null
+          y: number | null
+          z: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          sensor_type: string
+          timestamp: number
+          training_session_id?: string | null
+          x?: number | null
+          y?: number | null
+          z?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          sensor_type?: string
+          timestamp?: number
+          training_session_id?: string | null
+          x?: number | null
+          y?: number | null
+          z?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_recordings_training_session_id_fkey"
+            columns: ["training_session_id"]
+            isOneToOne: false
+            referencedRelation: "ml_training_sessions"
             referencedColumns: ["id"]
           },
         ]

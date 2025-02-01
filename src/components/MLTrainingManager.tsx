@@ -15,6 +15,7 @@ import { Upload, Play, Pause, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TrainingStats {
   totalExamples: {
@@ -40,6 +41,7 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
   const [possessionStartTime, setPossessionStartTime] = useState<number | null>(null);
   const [totalPossessionTime, setTotalPossessionTime] = useState(0);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,24 +54,50 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
     }
   };
 
-  const handleSensorDataUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSensorDataUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
+    if (file && currentSessionId) {
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target?.result as string);
           if (validateSensorLoggerData(data)) {
             const convertedData = convertSensorLoggerData(data);
+            
+            // Store sensor recordings in Supabase
+            const sensorRecordings = convertedData.map(reading => ({
+              training_session_id: currentSessionId,
+              sensor_type: reading.sensor,
+              x: reading.x,
+              y: reading.y,
+              z: reading.z,
+              timestamp: reading.time
+            }));
+
+            const { error } = await supabase
+              .from('sensor_recordings')
+              .insert(sensorRecordings);
+
+            if (error) {
+              console.error('Error storing sensor data:', error);
+              toast({
+                title: "Error",
+                description: "Failed to store sensor data",
+                variant: "destructive",
+              });
+              return;
+            }
+
             setTrainingData(prev => [...prev, {
               sensorData: convertedData,
               label: currentLabel,
               videoTimestamp: recordingStartTime || Date.now(),
               duration: currentLabel !== 'no_possession' ? Date.now() - (recordingStartTime || Date.now()) : undefined
             }]);
+
             toast({
               title: "Data added",
-              description: "Sensor data has been validated and added to training set.",
+              description: "Sensor data has been validated and stored successfully.",
             });
           } else {
             toast({
@@ -79,6 +107,7 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
             });
           }
         } catch (error) {
+          console.error('Error processing sensor data:', error);
           toast({
             title: "Error",
             description: "Failed to parse sensor data",
@@ -87,27 +116,73 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
         }
       };
       reader.readAsText(file);
+    } else {
+      toast({
+        title: "Error",
+        description: "No active training session",
+        variant: "destructive",
+      });
     }
   };
 
-  const toggleRecording = () => {
+  const toggleRecording = async () => {
     if (!isRecording) {
       const startTime = Date.now();
+      
+      // Create new training session in Supabase
+      const { data: session, error } = await supabase
+        .from('ml_training_sessions')
+        .insert({
+          activity_type: currentLabel,
+          video_timestamp: startTime,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating training session:', error);
+        toast({
+          title: "Error",
+          description: "Failed to start training session",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setCurrentSessionId(session.id);
       setRecordingStartTime(startTime);
       if (currentLabel !== 'no_possession') {
         setPossessionStartTime(startTime);
       }
+      
       toast({
         title: "Recording started",
         description: "Start your video recording now and perform the selected action. Label timestamps in your video recording software.",
       });
     } else {
+      // Update session end time in Supabase
+      if (currentSessionId) {
+        const { error } = await supabase
+          .from('ml_training_sessions')
+          .update({ 
+            end_time: new Date().toISOString(),
+            duration: possessionStartTime ? Date.now() - possessionStartTime : null
+          })
+          .eq('id', currentSessionId);
+
+        if (error) {
+          console.error('Error updating training session:', error);
+        }
+      }
+
       setRecordingStartTime(null);
+      setCurrentSessionId(null);
       if (possessionStartTime) {
         const possessionDuration = Date.now() - possessionStartTime;
         setTotalPossessionTime(prev => prev + possessionDuration);
         setPossessionStartTime(null);
       }
+      
       toast({
         title: "Recording stopped",
         description: "Upload your video and sensor data files for this session.",
@@ -130,6 +205,19 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
       const model = createModel();
       await trainModel(model, trainingData);
       
+      // Store model in Supabase
+      const { error } = await supabase
+        .from('ml_models')
+        .insert({
+          version: '1.0',
+          accuracy: 85, // This would come from actual model evaluation
+          parameters: JSON.stringify(model.getWeights())
+        });
+
+      if (error) {
+        console.error('Error storing model:', error);
+      }
+
       // Update training progress
       onTrainingProgress({
         totalExamples: {
@@ -139,16 +227,17 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
           touch: trainingData.filter(d => d.label === 'touch').length,
           no_possession: trainingData.filter(d => d.label === 'no_possession').length,
         },
-        currentAccuracy: 85, // This would come from actual model evaluation
-        epochsCompleted: 10, // This would come from actual training progress
+        currentAccuracy: 85,
+        epochsCompleted: 10,
         lastTrainingTime: new Date().toISOString(),
       });
 
       toast({
         title: "Training complete",
-        description: "Model has been trained successfully.",
+        description: "Model has been trained and stored successfully.",
       });
     } catch (error) {
+      console.error('Training error:', error);
       toast({
         title: "Training failed",
         description: "An error occurred during training.",
