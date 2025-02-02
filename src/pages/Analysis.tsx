@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import MetricCard from "@/components/MetricCard";
 import PerformanceChart from "@/components/PerformanceChart";
 import PlayerMovementMap from "@/components/PlayerMovementMap";
 import DeviceManager from "@/components/DeviceManager";
-import { Activity, Footprints, Target, Repeat } from "lucide-react";
+import { Activity, Footprints, Target, Repeat, Users, User, ChartBar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,7 +16,6 @@ const Analysis = () => {
 
   const startSession = async (deviceAssignments: { playerId: string, deviceId: number }[]) => {
     try {
-      // Create a new session for each device assignment
       const timestamp = new Date().toISOString();
       
       const promises = deviceAssignments.map(assignment => {
@@ -92,53 +92,84 @@ const Analysis = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <MetricCard
-            title="Total Steps"
-            value={0}
-            unit="steps"
-            icon={<Footprints className="h-4 w-4" />}
-          />
-          <MetricCard
-            title="Ball Touches"
-            value={0}
-            unit="touches"
-            icon={<Activity className="h-4 w-4" />}
-          />
-          <MetricCard
-            title="Successful Passes"
-            value={0}
-            unit="passes"
-            icon={<Repeat className="h-4 w-4" />}
-            subtitle="92% confidence"
-          />
-          <MetricCard
-            title="Shots on Target"
-            value={0}
-            unit="shots"
-            icon={<Target className="h-4 w-4" />}
-            subtitle="95% confidence"
-          />
-        </div>
+        <Tabs defaultValue="overall" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overall" className="flex items-center gap-2">
+              <ChartBar className="h-4 w-4" />
+              Overall Session
+            </TabsTrigger>
+            <TabsTrigger value="individual" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Individual Players
+            </TabsTrigger>
+            <TabsTrigger value="group" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Group Selection
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-          <PerformanceChart
-            title="Movement Intensity"
-            data={[]}
-            dataKey="value"
-            color="#0F766E"
-          />
-          <PerformanceChart
-            title="Shot Power Analysis"
-            data={[]}
-            dataKey="value"
-            color="#EAB308"
-          />
-        </div>
+          <TabsContent value="overall" className="mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <MetricCard
+                title="Total Steps"
+                value={0}
+                unit="steps"
+                icon={<Footprints className="h-4 w-4" />}
+              />
+              <MetricCard
+                title="Ball Touches"
+                value={0}
+                unit="touches"
+                icon={<Activity className="h-4 w-4" />}
+              />
+              <MetricCard
+                title="Successful Passes"
+                value={0}
+                unit="passes"
+                icon={<Repeat className="h-4 w-4" />}
+                subtitle="92% confidence"
+              />
+              <MetricCard
+                title="Shots on Target"
+                value={0}
+                unit="shots"
+                icon={<Target className="h-4 w-4" />}
+                subtitle="95% confidence"
+              />
+            </div>
 
-        <div className="mt-8">
-          <PlayerMovementMap />
-        </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+              <PerformanceChart
+                title="Movement Intensity"
+                data={[]}
+                dataKey="value"
+                color="#0F766E"
+              />
+              <PerformanceChart
+                title="Shot Power Analysis"
+                data={[]}
+                dataKey="value"
+                color="#EAB308"
+              />
+            </div>
+
+            <div className="mt-8">
+              <PlayerMovementMap />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="individual" className="mt-6">
+            <div className="text-center text-gray-500">
+              Individual player analysis will be implemented here
+            </div>
+          </TabsContent>
+
+          <TabsContent value="group" className="mt-6">
+            <div className="text-center text-gray-500">
+              Group selection and analysis will be implemented here
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
