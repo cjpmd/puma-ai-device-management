@@ -43,14 +43,19 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
   const [possessionStartTime, setPossessionStartTime] = useState<number | null>(null);
   const [totalPossessionTime, setTotalPossessionTime] = useState(0);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [localVideoPath, setLocalVideoPath] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Create a local URL for the video file
+      const videoURL = URL.createObjectURL(file);
+      setLocalVideoPath(videoURL);
+      
       toast({
-        title: "Video uploaded",
-        description: "Video file has been uploaded successfully. Make sure your video includes activity timestamps from VIA or similar software.",
+        title: "Video stored locally",
+        description: "Video file has been stored locally. Make sure your video includes activity timestamps from VIA or similar software.",
       });
     }
   };
@@ -158,8 +163,8 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
       }
       
       toast({
-        title: "Recording started",
-        description: "Start your video recording now and perform the selected action. Label timestamps in your video recording software.",
+        title: "Recording session started",
+        description: "Upload your pre-recorded video and sensor data files for this session.",
       });
     } else {
       // Update session end time in Supabase
@@ -185,9 +190,15 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
         setPossessionStartTime(null);
       }
       
+      // Clear the local video URL
+      if (localVideoPath) {
+        URL.revokeObjectURL(localVideoPath);
+        setLocalVideoPath(null);
+      }
+      
       toast({
-        title: "Recording stopped",
-        description: "Upload your video and sensor data files for this session.",
+        title: "Recording session stopped",
+        description: "Training data has been processed.",
       });
     }
     setIsRecording(!isRecording);
@@ -262,7 +273,7 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
             2. Record video separately on another device<br/>
             3. Use VGG Image Annotator (VIA) or similar to add activity timestamps to your video<br/>
             4. Select activity type and click "Start Recording" to begin a training session<br/>
-            5. Upload your annotated video and Sensor Logger JSON files<br/>
+            5. Upload your annotated video (stored locally) and Sensor Logger JSON files<br/>
             6. Click "Stop Recording" when uploads are complete
           </AlertDescription>
         </Alert>
@@ -271,7 +282,7 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
           <h3 className="text-sm font-medium">Upload Training Data</h3>
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-sm mb-2">Annotated Video Recording</label>
+              <label className="block text-sm mb-2">Annotated Video Recording (Stored Locally)</label>
               <Input
                 type="file"
                 accept="video/*"
@@ -279,6 +290,11 @@ const MLTrainingManager = ({ onTrainingProgress }: MLTrainingManagerProps) => {
                 className="cursor-pointer"
                 disabled={isRecording}
               />
+              {localVideoPath && (
+                <div className="mt-2 text-sm text-muted-foreground">
+                  Video file stored locally
+                </div>
+              )}
             </div>
             <div className="flex-1">
               <label className="block text-sm mb-2">Sensor Logger Data (JSON)</label>
