@@ -4,6 +4,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
+import { Toggle } from "@/components/ui/toggle";
 
 interface PlayerMovementMapProps {
   gpsData?: Array<[number, number, number]>; // [timestamp, latitude, longitude]
@@ -12,11 +13,98 @@ interface PlayerMovementMapProps {
 
 const PlayerMovementMap = ({ gpsData, possessionData }: PlayerMovementMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [mapboxToken, setMapboxToken] = useState('');
+  const [isIndoorMode, setIsIndoorMode] = useState(true);
   const { toast } = useToast();
 
+  // Draw indoor pitch
+  const drawIndoorPitch = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Set pitch dimensions
+    const pitchWidth = canvas.width * 0.9;
+    const pitchHeight = canvas.height * 0.9;
+    const startX = (canvas.width - pitchWidth) / 2;
+    const startY = (canvas.height - pitchHeight) / 2;
+
+    // Draw pitch outline
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(startX, startY, pitchWidth, pitchHeight);
+
+    // Draw center line
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2, startY);
+    ctx.lineTo(canvas.width / 2, startY + pitchHeight);
+    ctx.stroke();
+
+    // Draw center circle
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height / 2, pitchHeight * 0.15, 0, 2 * Math.PI);
+    ctx.stroke();
+
+    // Draw penalty areas
+    const penAreaWidth = pitchWidth * 0.2;
+    const penAreaHeight = pitchHeight * 0.4;
+    
+    // Left penalty area
+    ctx.strokeRect(
+      startX,
+      startY + (pitchHeight - penAreaHeight) / 2,
+      penAreaWidth,
+      penAreaHeight
+    );
+
+    // Right penalty area
+    ctx.strokeRect(
+      startX + pitchWidth - penAreaWidth,
+      startY + (pitchHeight - penAreaHeight) / 2,
+      penAreaWidth,
+      penAreaHeight
+    );
+
+    // Draw player movement if data exists
+    if (gpsData?.length) {
+      ctx.beginPath();
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 3;
+      
+      // Normalize GPS coordinates to pitch dimensions
+      const normalizedPoints = gpsData.map(([_, lat, lng]) => ({
+        x: startX + (lng - Math.min(...gpsData.map(d => d[2]))) / (Math.max(...gpsData.map(d => d[2])) - Math.min(...gpsData.map(d => d[2]))) * pitchWidth,
+        y: startY + (lat - Math.min(...gpsData.map(d => d[1]))) / (Math.max(...gpsData.map(d => d[1])) - Math.min(...gpsData.map(d => d[1]))) * pitchHeight
+      }));
+
+      normalizedPoints.forEach((point, i) => {
+        if (i === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+      ctx.stroke();
+    }
+  };
+
   useEffect(() => {
+    if (isIndoorMode) {
+      if (canvasRef.current) {
+        canvasRef.current.width = canvasRef.current.offsetWidth;
+        canvasRef.current.height = canvasRef.current.offsetHeight;
+        drawIndoorPitch();
+      }
+      return;
+    }
+
     if (!mapContainer.current || !mapboxToken || !gpsData?.length) return;
 
     try {
@@ -108,6 +196,7 @@ const PlayerMovementMap = ({ gpsData, possessionData }: PlayerMovementMapProps) 
           }
         });
       });
+
     } catch (error) {
       console.error('Error initializing map:', error);
       toast({
@@ -120,23 +209,41 @@ const PlayerMovementMap = ({ gpsData, possessionData }: PlayerMovementMapProps) 
     return () => {
       map.current?.remove();
     };
-  }, [gpsData, mapboxToken]);
+  }, [gpsData, mapboxToken, isIndoorMode]);
 
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>Player Movement Map</CardTitle>
+        <CardTitle className="flex justify-between items-center">
+          <span>Player Movement Map</span>
+          <Toggle
+            pressed={isIndoorMode}
+            onPressedChange={setIsIndoorMode}
+            className="ml-2"
+          >
+            {isIndoorMode ? 'Indoor Mode' : 'GPS Mode'}
+          </Toggle>
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="mb-4">
-          <Input
-            type="text"
-            placeholder="Enter your Mapbox public token"
-            value={mapboxToken}
-            onChange={(e) => setMapboxToken(e.target.value)}
+        {!isIndoorMode && (
+          <div className="mb-4">
+            <Input
+              type="text"
+              placeholder="Enter your Mapbox public token"
+              value={mapboxToken}
+              onChange={(e) => setMapboxToken(e.target.value)}
+            />
+          </div>
+        )}
+        {isIndoorMode ? (
+          <canvas 
+            ref={canvasRef}
+            className="h-[500px] w-full rounded-lg bg-[#0F172A]"
           />
-        </div>
-        <div ref={mapContainer} className="h-[500px] rounded-lg overflow-hidden" />
+        ) : (
+          <div ref={mapContainer} className="h-[500px] rounded-lg overflow-hidden" />
+        )}
       </CardContent>
     </Card>
   );
