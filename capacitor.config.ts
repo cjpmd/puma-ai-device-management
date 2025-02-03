@@ -9,7 +9,17 @@ const config: CapacitorConfig = {
     cleartext: true
   },
   ios: {
-    contentInset: 'always'
+    contentInset: 'always',
+    scheme: 'Player Analysis',
+    backgroundColor: '#ffffff',
+    permissions: {
+      'bluetooth-peripheral': {
+        'usageDescription': 'This app needs access to Bluetooth to connect to player tracking devices'
+      },
+      'motion': {
+        'usageDescription': 'Motion data is used to analyze player movements and performance'
+      }
+    }
   }
 };
 
