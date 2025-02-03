@@ -1760,6 +1760,77 @@ export type Database = {
         }
         Relationships: []
       }
+      video_analysis: {
+        Row: {
+          analysis_data: Json | null
+          created_at: string | null
+          date: string
+          duration: number | null
+          id: string
+          title: string
+          updated_at: string | null
+          video_path: string
+        }
+        Insert: {
+          analysis_data?: Json | null
+          created_at?: string | null
+          date?: string
+          duration?: number | null
+          id?: string
+          title: string
+          updated_at?: string | null
+          video_path: string
+        }
+        Update: {
+          analysis_data?: Json | null
+          created_at?: string | null
+          date?: string
+          duration?: number | null
+          id?: string
+          title?: string
+          updated_at?: string | null
+          video_path?: string
+        }
+        Relationships: []
+      }
+      video_annotations: {
+        Row: {
+          annotation_type: string
+          created_at: string | null
+          data: Json
+          id: string
+          timestamp: number
+          updated_at: string | null
+          video_id: string | null
+        }
+        Insert: {
+          annotation_type: string
+          created_at?: string | null
+          data: Json
+          id?: string
+          timestamp: number
+          updated_at?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          annotation_type?: string
+          created_at?: string | null
+          data?: Json
+          id?: string
+          timestamp?: number
+          updated_at?: string | null
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_annotations_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "video_analysis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       attribute_history: {

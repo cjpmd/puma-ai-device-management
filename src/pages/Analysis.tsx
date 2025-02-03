@@ -5,7 +5,8 @@ import MetricCard from "@/components/MetricCard";
 import PerformanceChart from "@/components/PerformanceChart";
 import PlayerMovementMap from "@/components/PlayerMovementMap";
 import DeviceManager from "@/components/DeviceManager";
-import { Activity, Footprints, Target, Repeat, Users, User, ChartBar } from "lucide-react";
+import VideoAnalysisTab from "@/components/VideoAnalysis/VideoAnalysisTab";
+import { Activity, Footprints, Target, Repeat, Users, User, ChartBar, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,7 +94,7 @@ const Analysis = () => {
         </div>
 
         <Tabs defaultValue="overall" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overall" className="flex items-center gap-2">
               <ChartBar className="h-4 w-4" />
               Overall Session
@@ -105,6 +106,10 @@ const Analysis = () => {
             <TabsTrigger value="group" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Group Selection
+            </TabsTrigger>
+            <TabsTrigger value="video" className="flex items-center gap-2">
+              <Video className="h-4 w-4" />
+              Video Analysis
             </TabsTrigger>
           </TabsList>
 
@@ -168,6 +173,10 @@ const Analysis = () => {
             <div className="text-center text-gray-500">
               Group selection and analysis will be implemented here
             </div>
+          </TabsContent>
+
+          <TabsContent value="video" className="mt-6">
+            <VideoAnalysisTab />
           </TabsContent>
         </Tabs>
       </div>
