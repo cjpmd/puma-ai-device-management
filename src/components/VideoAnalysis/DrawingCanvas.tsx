@@ -27,8 +27,15 @@ const DrawingCanvas = ({ width, height, onAnnotationChange }: DrawingCanvasProps
       width,
       height,
       backgroundColor: 'transparent',
+      isDrawingMode: false
     });
 
+    // Initialize the free drawing brush
+    if (!fabricCanvas.freeDrawingBrush) {
+      fabricCanvas.freeDrawingBrush = new fabric.PencilBrush(fabricCanvas);
+    }
+
+    // Set brush properties
     fabricCanvas.freeDrawingBrush.color = '#ff0000';
     fabricCanvas.freeDrawingBrush.width = 2;
 
