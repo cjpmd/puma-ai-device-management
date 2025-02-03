@@ -7,9 +7,12 @@ import { Upload } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import VideoPlayer from './VideoPlayer';
 import DrawingCanvas from './DrawingCanvas';
+import ShotMap from '../Analysis/ShotMap';
+import PassingHeatmap from '../Analysis/PassingHeatmap';
 
 const VideoAnalysisTab = () => {
   const [videoUrl, setVideoUrl] = useState<string>('');
+  const [videoId, setVideoId] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
@@ -32,17 +35,21 @@ const VideoAnalysisTab = () => {
         .from('game_videos')
         .getPublicUrl(filePath);
 
-      const { error: dbError } = await supabase
+      const { data, error: dbError } = await supabase
         .from('video_analysis')
         .insert({
           title: file.name,
           video_path: filePath,
           duration: 0, // Will be updated when video loads
-        });
+        })
+        .select()
+        .single();
 
       if (dbError) throw dbError;
 
       setVideoUrl(publicUrl);
+      setVideoId(data.id);
+      
       toast({
         title: "Upload successful",
         description: "Video has been uploaded and is ready for analysis",
@@ -57,6 +64,11 @@ const VideoAnalysisTab = () => {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleTimeUpdate = (currentTime: number) => {
+    // This will be used for automatic shot and pass detection
+    console.log('Current time:', currentTime);
   };
 
   return (
@@ -83,9 +95,16 @@ const VideoAnalysisTab = () => {
         </div>
 
         {videoUrl ? (
-          <div className="relative">
-            <VideoPlayer videoUrl={videoUrl} />
-            <DrawingCanvas width={800} height={450} />
+          <div className="space-y-6">
+            <div className="relative">
+              <VideoPlayer videoUrl={videoUrl} onTimeUpdate={handleTimeUpdate} />
+              <DrawingCanvas width={800} height={450} />
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <ShotMap videoId={videoId} />
+              <PassingHeatmap videoId={videoId} />
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-[450px] border-2 border-dashed rounded-lg">
