@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Canvas as FabricCanvas, Circle, Line, Rect } from 'fabric';
+import { Canvas as FabricCanvas, Circle, Line, Rect, PencilBrush } from 'fabric';
 import { Button } from "@/components/ui/button";
 import { 
   Pencil, 
@@ -32,7 +32,7 @@ const DrawingCanvas = ({ width, height, onAnnotationChange }: DrawingCanvasProps
 
     // Initialize the free drawing brush
     if (!fabricCanvas.freeDrawingBrush) {
-      fabricCanvas.freeDrawingBrush = new fabric.PencilBrush(fabricCanvas);
+      fabricCanvas.freeDrawingBrush = new PencilBrush(fabricCanvas);
     }
 
     // Set brush properties
