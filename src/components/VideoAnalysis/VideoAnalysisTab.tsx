@@ -11,58 +11,45 @@ import ShotMap from '../Analysis/ShotMap';
 import PassingHeatmap from '../Analysis/PassingHeatmap';
 
 const VideoAnalysisTab = () => {
-  const [videoUrl, setVideoUrl] = useState<string>('');
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoId, setVideoId] = useState<string>('');
-  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setIsUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${crypto.randomUUID()}.${fileExt}`;
+      // Create a local URL for the video file
+      const localVideoUrl = URL.createObjectURL(file);
+      setVideoUrl(localVideoUrl);
 
-      const { error: uploadError } = await supabase.storage
-        .from('game_videos')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('game_videos')
-        .getPublicUrl(filePath);
-
-      const { data, error: dbError } = await supabase
+      // Store video metadata in Supabase
+      const { data, error } = await supabase
         .from('video_analysis')
         .insert({
           title: file.name,
-          video_path: filePath,
+          video_path: 'local_storage', // Indicate this is stored locally
           duration: 0, // Will be updated when video loads
         })
         .select()
         .single();
 
-      if (dbError) throw dbError;
+      if (error) throw error;
 
-      setVideoUrl(publicUrl);
       setVideoId(data.id);
       
       toast({
-        title: "Upload successful",
-        description: "Video has been uploaded and is ready for analysis",
+        title: "Video loaded successfully",
+        description: "Video is stored locally and ready for analysis",
       });
     } catch (error) {
-      console.error('Error uploading video:', error);
+      console.error('Error handling video:', error);
       toast({
-        title: "Upload failed",
-        description: "There was an error uploading your video",
+        title: "Error",
+        description: "There was an error loading your video",
         variant: "destructive",
       });
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -86,7 +73,6 @@ const VideoAnalysisTab = () => {
             />
             <Button
               onClick={() => document.getElementById('video-upload')?.click()}
-              disabled={isUploading}
             >
               <Upload className="mr-2 h-4 w-4" />
               Upload Video
