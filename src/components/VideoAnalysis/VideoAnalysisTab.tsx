@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +13,35 @@ import PassingHeatmap from '../Analysis/PassingHeatmap';
 const VideoAnalysisTab = () => {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoId, setVideoId] = useState<string>('');
+  const [session, setSession] = useState<any>(null);
   const { toast } = useToast();
 
+  useEffect(() => {
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!session) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to upload videos",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -57,6 +83,15 @@ const VideoAnalysisTab = () => {
     // This will be used for automatic shot and pass detection
     console.log('Current time:', currentTime);
   };
+
+  if (!session) {
+    return (
+      <div className="flex flex-col items-center justify-center p-6">
+        <h3 className="text-lg font-semibold mb-4">Authentication Required</h3>
+        <p className="text-gray-500">Please log in to access video analysis features.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
