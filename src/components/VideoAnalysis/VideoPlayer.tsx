@@ -6,11 +6,11 @@ import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
 interface VideoPlayerProps {
   videoUrl: string;
   onTimeUpdate?: (currentTime: number) => void;
+  isPlaying?: boolean;
 }
 
-const VideoPlayer = ({ videoUrl, onTimeUpdate }: VideoPlayerProps) => {
+const VideoPlayer = ({ videoUrl, onTimeUpdate, isPlaying = false }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -36,16 +36,16 @@ const VideoPlayer = ({ videoUrl, onTimeUpdate }: VideoPlayerProps) => {
     };
   }, [onTimeUpdate]);
 
-  const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isPlaying) {
+      video.play();
+    } else {
+      video.pause();
     }
-  };
+  }, [isPlaying]);
 
   const handleSeek = (value: number[]) => {
     if (videoRef.current) {
@@ -97,7 +97,7 @@ const VideoPlayer = ({ videoUrl, onTimeUpdate }: VideoPlayerProps) => {
         <Button variant="outline" size="icon" onClick={skipBackward}>
           <SkipBack className="h-4 w-4" />
         </Button>
-        <Button onClick={togglePlay} variant="outline" size="icon">
+        <Button onClick={() => {}} variant="outline" size="icon">
           {isPlaying ? (
             <Pause className="h-4 w-4" />
           ) : (
