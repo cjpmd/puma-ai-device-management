@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Toggle } from "@/components/ui/toggle";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Activity, Target, ArrowRight, Ball, Hand } from 'lucide-react';
+import { Activity, Target, ArrowRight, CircleDot, Hand } from 'lucide-react';
 
 interface PlayerMovementMapProps {
   gpsData?: Array<[number, number, number]>; // [timestamp, latitude, longitude]
