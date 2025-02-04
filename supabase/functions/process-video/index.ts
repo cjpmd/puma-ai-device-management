@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import { serve } from "https://deno.fresh.run/std@0.177.0/http/server.ts"
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,6 +20,8 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const supabase = createClient(supabaseUrl!, supabaseKey!)
 
+    console.log('Processing video frame:', { videoId, frameNumber, playerIds })
+
     // Mock YOLO detection for now - will be replaced with actual ML processing
     const mockDetections = playerIds.map(playerId => ({
       player_id: playerId,
@@ -29,6 +31,8 @@ serve(async (req) => {
       confidence: 0.95
     }))
 
+    console.log('Generated mock detections:', mockDetections)
+
     // Store detections
     const { error } = await supabase
       .from('player_tracking')
@@ -37,13 +41,19 @@ serve(async (req) => {
         ...detection
       })))
 
-    if (error) throw error
+    if (error) {
+      console.error('Error storing detections:', error)
+      throw error
+    }
+
+    console.log('Successfully stored detections')
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
   } catch (error) {
+    console.error('Error processing request:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
