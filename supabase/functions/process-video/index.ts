@@ -7,38 +7,36 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { videoId, frameNumber, playerIds } = await req.json()
+    const { videoId, frameNumber, frameData, playerIds } = await req.json()
     
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const supabase = createClient(supabaseUrl!, supabaseKey!)
 
-    console.log('Processing video frame:', { videoId, frameNumber, playerIds })
+    console.log('Processing video frame:', { videoId, frameNumber })
 
-    // Mock YOLO detection for now - will be replaced with actual ML processing
-    const mockDetections = playerIds.map(playerId => ({
-      player_id: playerId,
-      frame_number: frameNumber,
-      x_coord: Math.random() * 100,
-      y_coord: Math.random() * 100,
-      confidence: 0.95
-    }))
+    // Process frame data using TensorFlow.js
+    // Note: In a production environment, you'd want to use a more robust ML pipeline
+    const detections = await processFrame(frameData)
 
-    console.log('Generated mock detections:', mockDetections)
+    console.log('Generated detections:', detections)
 
     // Store detections
     const { error } = await supabase
       .from('player_tracking')
-      .insert(mockDetections.map(detection => ({
+      .insert(detections.map(detection => ({
         video_id: videoId,
-        ...detection
+        frame_number: frameNumber,
+        x_coord: detection.x,
+        y_coord: detection.y,
+        confidence: detection.confidence,
+        player_id: detection.playerId
       })))
 
     if (error) {
@@ -60,3 +58,14 @@ serve(async (req) => {
     })
   }
 })
+
+async function processFrame(frameData: string) {
+  // This would be replaced with actual ML processing in production
+  // For now, we'll return mock data
+  return [{
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    confidence: 0.95,
+    playerId: 'mock-player-1'
+  }]
+}

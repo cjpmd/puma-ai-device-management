@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { Upload } from 'lucide-react';
+import { Upload, Play, Pause, Target, Eye } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import VideoPlayer from './VideoPlayer';
 import DrawingCanvas from './DrawingCanvas';
@@ -13,16 +13,16 @@ import PassingHeatmap from '../Analysis/PassingHeatmap';
 const VideoAnalysisTab = () => {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoId, setVideoId] = useState<string>('');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
   const [session, setSession] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -46,17 +46,15 @@ const VideoAnalysisTab = () => {
     if (!file) return;
 
     try {
-      // Create a local URL for the video file
       const localVideoUrl = URL.createObjectURL(file);
       setVideoUrl(localVideoUrl);
 
-      // Store video metadata in Supabase
       const { data, error } = await supabase
         .from('video_analysis')
         .insert({
           title: file.name,
-          video_path: 'local_storage', // Indicate this is stored locally
-          duration: 0, // Will be updated when video loads
+          video_path: 'local_storage',
+          duration: 0,
         })
         .select()
         .single();
@@ -67,7 +65,7 @@ const VideoAnalysisTab = () => {
       
       toast({
         title: "Video loaded successfully",
-        description: "Video is stored locally and ready for analysis",
+        description: "Video is ready for analysis",
       });
     } catch (error) {
       console.error('Error handling video:', error);
@@ -80,8 +78,11 @@ const VideoAnalysisTab = () => {
   };
 
   const handleTimeUpdate = (currentTime: number) => {
-    // This will be used for automatic shot and pass detection
-    console.log('Current time:', currentTime);
+    setCurrentTime(currentTime);
+  };
+
+  const togglePlayback = () => {
+    setIsPlaying(!isPlaying);
   };
 
   if (!session) {
@@ -118,8 +119,31 @@ const VideoAnalysisTab = () => {
         {videoUrl ? (
           <div className="space-y-6">
             <div className="relative">
-              <VideoPlayer videoUrl={videoUrl} onTimeUpdate={handleTimeUpdate} />
-              <DrawingCanvas width={800} height={450} />
+              <VideoPlayer 
+                videoUrl={videoUrl} 
+                onTimeUpdate={handleTimeUpdate}
+                isPlaying={isPlaying}
+              />
+              <DrawingCanvas 
+                width={800} 
+                height={450} 
+                videoId={videoId}
+                currentTime={currentTime}
+              />
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={togglePlayback}
+                >
+                  {isPlaying ? (
+                    <Pause className="h-4 w-4 mr-2" />
+                  ) : (
+                    <Play className="h-4 w-4 mr-2" />
+                  )}
+                  {isPlaying ? 'Pause' : 'Play'}
+                </Button>
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
