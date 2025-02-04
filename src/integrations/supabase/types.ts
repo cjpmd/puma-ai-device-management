@@ -1257,6 +1257,78 @@ export type Database = {
           },
         ]
       }
+      player_physical_data: {
+        Row: {
+          age: number | null
+          created_at: string | null
+          dominant_foot: string | null
+          height_cm: number | null
+          id: string
+          player_id: string | null
+          shoe_size: number | null
+          updated_at: string | null
+          weight_kg: number | null
+        }
+        Insert: {
+          age?: number | null
+          created_at?: string | null
+          dominant_foot?: string | null
+          height_cm?: number | null
+          id?: string
+          player_id?: string | null
+          shoe_size?: number | null
+          updated_at?: string | null
+          weight_kg?: number | null
+        }
+        Update: {
+          age?: number | null
+          created_at?: string | null
+          dominant_foot?: string | null
+          height_cm?: number | null
+          id?: string
+          player_id?: string | null
+          shoe_size?: number | null
+          updated_at?: string | null
+          weight_kg?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_physical_data_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "available_players_by_category"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_physical_data_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "player_fixture_stats"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_physical_data_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "player_stats"
+            referencedColumns: ["player_id"]
+          },
+          {
+            foreignKeyName: "player_physical_data_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_physical_data_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "position_rankings"
+            referencedColumns: ["player_id"]
+          },
+        ]
+      }
       players: {
         Row: {
           age: number
