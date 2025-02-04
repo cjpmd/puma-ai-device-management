@@ -1,24 +1,36 @@
 import { useEffect, useRef, useState } from 'react';
-import { Canvas as FabricCanvas, Circle, Line, Rect, PencilBrush } from 'fabric';
+import { Canvas as FabricCanvas, Circle, Rect, PencilBrush } from 'fabric';
 import { Button } from "@/components/ui/button";
 import { 
   Pencil, 
   Square, 
   Circle as CircleIcon, 
   MousePointer, 
-  Trash2 
+  Trash2,
+  UserSquare2
 } from 'lucide-react';
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 interface DrawingCanvasProps {
   width: number;
   height: number;
+  videoId?: string;
+  currentTime?: number;
   onAnnotationChange?: (annotations: any) => void;
 }
 
-const DrawingCanvas = ({ width, height, onAnnotationChange }: DrawingCanvasProps) => {
+const DrawingCanvas = ({ 
+  width, 
+  height, 
+  videoId,
+  currentTime,
+  onAnnotationChange 
+}: DrawingCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [canvas, setCanvas] = useState<FabricCanvas | null>(null);
-  const [activeTool, setActiveTool] = useState<'select' | 'draw' | 'rectangle' | 'circle'>('select');
+  const [activeTool, setActiveTool] = useState<'select' | 'draw' | 'rectangle' | 'circle' | 'player-track'>('select');
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -31,13 +43,9 @@ const DrawingCanvas = ({ width, height, onAnnotationChange }: DrawingCanvasProps
     });
 
     // Initialize the free drawing brush
-    if (!fabricCanvas.freeDrawingBrush) {
-      fabricCanvas.freeDrawingBrush = new PencilBrush(fabricCanvas);
-    }
-
-    // Set brush properties
-    fabricCanvas.freeDrawingBrush.color = '#ff0000';
+    fabricCanvas.freeDrawingBrush = new PencilBrush(fabricCanvas);
     fabricCanvas.freeDrawingBrush.width = 2;
+    fabricCanvas.freeDrawingBrush.color = '#ff0000';
 
     setCanvas(fabricCanvas);
 
@@ -48,16 +56,10 @@ const DrawingCanvas = ({ width, height, onAnnotationChange }: DrawingCanvasProps
 
   useEffect(() => {
     if (!canvas) return;
-
     canvas.isDrawingMode = activeTool === 'draw';
-    
-    if (activeTool === 'draw' && canvas.freeDrawingBrush) {
-      canvas.freeDrawingBrush.color = '#ff0000';
-      canvas.freeDrawingBrush.width = 2;
-    }
   }, [activeTool, canvas]);
 
-  const handleToolClick = (tool: typeof activeTool) => {
+  const handleToolClick = async (tool: typeof activeTool) => {
     setActiveTool(tool);
 
     if (!canvas) return;
@@ -85,6 +87,56 @@ const DrawingCanvas = ({ width, height, onAnnotationChange }: DrawingCanvasProps
       });
       canvas.add(circle);
       canvas.setActiveObject(circle);
+    } else if (tool === 'player-track' && videoId && currentTime) {
+      try {
+        // Mock player IDs for now - in a real app, you'd select players to track
+        const playerIds = ['mock-player-1', 'mock-player-2'];
+        
+        const { error } = await supabase.functions.invoke('process-video', {
+          body: {
+            videoId,
+            frameNumber: Math.floor(currentTime * 30), // Assuming 30fps
+            playerIds
+          }
+        });
+
+        if (error) throw error;
+
+        toast({
+          title: "Player Tracking",
+          description: "Processing frame for player tracking...",
+        });
+
+        // Fetch and display tracking results
+        const { data: trackingData, error: fetchError } = await supabase
+          .from('player_tracking')
+          .select('*')
+          .eq('video_id', videoId)
+          .eq('frame_number', Math.floor(currentTime * 30));
+
+        if (fetchError) throw fetchError;
+
+        // Display tracking results on canvas
+        trackingData?.forEach(track => {
+          const marker = new Circle({
+            left: track.x_coord * width / 100,
+            top: track.y_coord * height / 100,
+            fill: 'rgba(255, 0, 0, 0.5)',
+            radius: 10,
+            selectable: false
+          });
+          canvas.add(marker);
+        });
+
+        canvas.renderAll();
+      } catch (error) {
+        console.error('Error processing video:', error);
+        toast({
+          title: "Error",
+          description: "Failed to process video frame",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -125,6 +177,13 @@ const DrawingCanvas = ({ width, height, onAnnotationChange }: DrawingCanvasProps
           onClick={() => handleToolClick('circle')}
         >
           <CircleIcon className="h-4 w-4" />
+        </Button>
+        <Button
+          variant={activeTool === 'player-track' ? 'default' : 'outline'}
+          size="icon"
+          onClick={() => handleToolClick('player-track')}
+        >
+          <UserSquare2 className="h-4 w-4" />
         </Button>
         <Button
           variant="outline"
