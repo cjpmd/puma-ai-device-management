@@ -654,6 +654,7 @@ export type Database = {
           number_of_teams: number | null
           opponent: string
           outcome: string | null
+          performance_category: string | null
           start_time: string | null
           team_name: string
           time: string | null
@@ -676,6 +677,7 @@ export type Database = {
           number_of_teams?: number | null
           opponent: string
           outcome?: string | null
+          performance_category?: string | null
           start_time?: string | null
           team_name: string
           time?: string | null
@@ -698,6 +700,7 @@ export type Database = {
           number_of_teams?: number | null
           opponent?: string
           outcome?: string | null
+          performance_category?: string | null
           start_time?: string | null
           team_name?: string
           time?: string | null
@@ -2300,6 +2303,18 @@ export type Database = {
           player_id: string | null
           previous_value: number | null
         }
+        Insert: {
+          created_at?: string | null
+          name?: string | null
+          player_id?: string | null
+          previous_value?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          name?: string | null
+          player_id?: string | null
+          previous_value?: number | null
+        }
         Relationships: [
           {
             foreignKeyName: "player_attributes_player_id_fkey"
@@ -2347,9 +2362,30 @@ export type Database = {
           name: string | null
           player_type: string | null
           squad_number: number | null
-          system_category: string | null
           team_category: string | null
           updated_at: string | null
+        }
+        Insert: {
+          age?: number | null
+          created_at?: string | null
+          date_of_birth?: string | null
+          id?: string | null
+          name?: string | null
+          player_type?: string | null
+          squad_number?: number | null
+          team_category?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          age?: number | null
+          created_at?: string | null
+          date_of_birth?: string | null
+          id?: string | null
+          name?: string | null
+          player_type?: string | null
+          squad_number?: number | null
+          team_category?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -2384,6 +2420,12 @@ export type Database = {
           position: string | null
           position_rank: number | null
           suitability_score: number | null
+        }
+        Relationships: []
+      }
+      team_performance_categories: {
+        Row: {
+          performance_category: string | null
         }
         Relationships: []
       }
