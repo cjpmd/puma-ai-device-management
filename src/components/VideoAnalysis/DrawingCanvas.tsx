@@ -1,4 +1,4 @@
-
+```typescript
 import { useEffect, useRef, useState } from 'react';
 import { Canvas as FabricCanvas, Circle, Rect, PencilBrush, Text, Object as FabricObject } from 'fabric';
 import { Button } from "@/components/ui/button";
@@ -129,8 +129,8 @@ const DrawingCanvas = ({
         }
       });
 
-      // Draw new detections
-      predictions.forEach(prediction => {
+      // Draw new detections and store them in the database
+      for (const prediction of predictions) {
         const [x, y, boxWidth, boxHeight] = prediction.bbox;
         
         // Create rectangle for bounding box
@@ -164,20 +164,31 @@ const DrawingCanvas = ({
 
         // Store detection in database if videoId is provided
         if (videoId && video.currentTime) {
-          const { error } = supabase.from('object_detections').insert({
-            video_id: videoId,
-            frame_time: video.currentTime,
-            object_class: prediction.class,
-            confidence: prediction.score,
-            x_coord: x / width,
-            y_coord: y / height,
-            width: boxWidth / width,
-            height: boxHeight / height
-          });
-          
-          if (error) console.error('Error storing detection:', error);
+          try {
+            const { data, error } = await supabase
+              .from('object_detections')
+              .insert({
+                video_id: videoId,
+                frame_time: video.currentTime,
+                object_class: prediction.class,
+                confidence: prediction.score,
+                x_coord: x / width,
+                y_coord: y / height,
+                width: boxWidth / width,
+                height: boxHeight / height
+              });
+
+            if (error) throw error;
+          } catch (error) {
+            console.error('Error storing detection:', error);
+            toast({
+              title: "Error",
+              description: "Failed to store object detection",
+              variant: "destructive",
+            });
+          }
         }
-      });
+      }
 
       canvas.renderAll();
 
@@ -186,8 +197,39 @@ const DrawingCanvas = ({
       }
     } catch (error) {
       console.error('Error during object detection:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process object detection",
+        variant: "destructive",
+      });
     }
   };
+
+  useEffect(() => {
+    if (onAnnotationChange && canvas) {
+      const handleObjectAdded = () => {
+        onAnnotationChange(canvas.getObjects());
+      };
+
+      const handleObjectRemoved = () => {
+        onAnnotationChange(canvas.getObjects());
+      };
+
+      const handleObjectModified = () => {
+        onAnnotationChange(canvas.getObjects());
+      };
+
+      canvas.on('object:added', handleObjectAdded);
+      canvas.on('object:removed', handleObjectRemoved);
+      canvas.on('object:modified', handleObjectModified);
+
+      return () => {
+        canvas.off('object:added', handleObjectAdded);
+        canvas.off('object:removed', handleObjectRemoved);
+        canvas.off('object:modified', handleObjectModified);
+      };
+    }
+  }, [canvas, onAnnotationChange]);
 
   const handleToolClick = async (tool: typeof activeTool) => {
     setActiveTool(tool);
@@ -374,3 +416,4 @@ const DrawingCanvas = ({
 };
 
 export default DrawingCanvas;
+```
