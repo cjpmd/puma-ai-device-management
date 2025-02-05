@@ -24,11 +24,12 @@ const DrawingToolbar = ({
   onClear 
 }: DrawingToolbarProps) => {
   return (
-    <div className="absolute top-4 left-4 flex flex-col gap-2">
+    <div className="absolute top-4 left-4 z-50 bg-white/90 p-2 rounded-lg shadow-lg flex flex-col gap-2 border border-gray-200">
       <Button
         variant={activeTool === 'select' ? 'default' : 'outline'}
         size="icon"
         onClick={() => onToolClick('select')}
+        title="Selection Tool"
       >
         <MousePointer className="h-4 w-4" />
       </Button>
@@ -36,6 +37,7 @@ const DrawingToolbar = ({
         variant={activeTool === 'draw' ? 'default' : 'outline'}
         size="icon"
         onClick={() => onToolClick('draw')}
+        title="Drawing Tool"
       >
         <Pencil className="h-4 w-4" />
       </Button>
@@ -43,6 +45,7 @@ const DrawingToolbar = ({
         variant={activeTool === 'rectangle' ? 'default' : 'outline'}
         size="icon"
         onClick={() => onToolClick('rectangle')}
+        title="Rectangle Tool"
       >
         <Square className="h-4 w-4" />
       </Button>
@@ -50,6 +53,7 @@ const DrawingToolbar = ({
         variant={activeTool === 'circle' ? 'default' : 'outline'}
         size="icon"
         onClick={() => onToolClick('circle')}
+        title="Circle Tool"
       >
         <CircleIcon className="h-4 w-4" />
       </Button>
@@ -57,6 +61,7 @@ const DrawingToolbar = ({
         variant={activeTool === 'player-track' ? 'default' : 'outline'}
         size="icon"
         onClick={() => onToolClick('player-track')}
+        title="Player Tracking"
       >
         <Target className="h-4 w-4" />
       </Button>
@@ -64,6 +69,7 @@ const DrawingToolbar = ({
         variant={isTracking ? 'default' : 'outline'}
         size="icon"
         onClick={() => onToolClick('yolo')}
+        title="Object Detection"
       >
         <Eye className="h-4 w-4" />
       </Button>
@@ -71,6 +77,7 @@ const DrawingToolbar = ({
         variant="outline"
         size="icon"
         onClick={onClear}
+        title="Clear Canvas"
       >
         <Trash2 className="h-4 w-4" />
       </Button>
