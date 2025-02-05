@@ -1,20 +1,11 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { Canvas as FabricCanvas, Circle, Rect, PencilBrush, Text, Object as FabricObject } from 'fabric';
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import * as tf from '@tensorflow/tfjs';
-import * as cocoSsd from '@tensorflow-models/coco-ssd';
-import { 
-  Pencil, 
-  Square, 
-  Circle as CircleIcon, 
-  MousePointer, 
-  Trash2,
-  UserSquare2,
-  Target,
-  Eye,
-} from 'lucide-react';
+import DrawingToolbar from './DrawingToolbar';
+import { useObjectDetection } from './hooks/useObjectDetection';
+import { storeDetection } from './services/detectionService';
 
 interface DrawingCanvasProps {
   width: number;
@@ -25,7 +16,6 @@ interface DrawingCanvasProps {
   onAnnotationChange?: (annotations: any) => void;
 }
 
-// Define a custom type for Fabric objects with data property
 interface CustomFabricObject extends FabricObject {
   data?: {
     type: string;
@@ -44,10 +34,10 @@ const DrawingCanvas = ({
   const [canvas, setCanvas] = useState<FabricCanvas | null>(null);
   const [activeTool, setActiveTool] = useState<'select' | 'draw' | 'rectangle' | 'circle' | 'player-track' | 'yolo'>('select');
   const [isTracking, setIsTracking] = useState(false);
-  const [model, setModel] = useState<cocoSsd.ObjectDetection | null>(null);
   const detectionCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number>();
   const { toast } = useToast();
+  const model = useObjectDetection();
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -71,27 +61,6 @@ const DrawingCanvas = ({
     detectionCanvas.height = height;
     detectionCanvasRef.current = detectionCanvas;
 
-    // Load COCO-SSD model
-    const loadModel = async () => {
-      try {
-        const loadedModel = await cocoSsd.load();
-        setModel(loadedModel);
-        toast({
-          title: "YOLO Model Loaded",
-          description: "Ready for object detection",
-        });
-      } catch (error) {
-        console.error('Error loading model:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load YOLO model",
-          variant: "destructive",
-        });
-      }
-    };
-
-    loadModel();
-
     return () => {
       fabricCanvas.dispose();
       if (animationFrameRef.current) {
@@ -113,11 +82,9 @@ const DrawingCanvas = ({
     const ctx = detectionCanvas.getContext('2d');
     if (!ctx) return;
 
-    // Draw the current video frame to the detection canvas
     ctx.drawImage(video, 0, 0, width, height);
 
     try {
-      // Detect objects in the frame
       const predictions = await model.detect(detectionCanvas);
 
       // Clear previous detections
@@ -128,11 +95,10 @@ const DrawingCanvas = ({
         }
       });
 
-      // Draw new detections and store them in the database
+      // Draw new detections
       for (const prediction of predictions) {
         const [x, y, boxWidth, boxHeight] = prediction.bbox;
         
-        // Create rectangle for bounding box
         const rect = new Rect({
           left: x,
           top: y,
@@ -145,7 +111,6 @@ const DrawingCanvas = ({
           data: { type: 'detection' }
         });
 
-        // Add label
         const text = new Text(
           `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
           {
@@ -161,23 +126,9 @@ const DrawingCanvas = ({
 
         canvas.add(rect, text);
 
-        // Store detection in database if videoId is provided
         if (videoId && video.currentTime) {
           try {
-            const { data, error } = await supabase
-              .from('object_detections')
-              .insert({
-                video_id: videoId,
-                frame_time: video.currentTime,
-                object_class: prediction.class,
-                confidence: prediction.score,
-                x_coord: x / width,
-                y_coord: y / height,
-                width: boxWidth / width,
-                height: boxHeight / height
-              });
-
-            if (error) throw error;
+            await storeDetection(videoId, video.currentTime, prediction, { width, height });
           } catch (error) {
             console.error('Error storing detection:', error);
             toast({
@@ -206,26 +157,18 @@ const DrawingCanvas = ({
 
   useEffect(() => {
     if (onAnnotationChange && canvas) {
-      const handleObjectAdded = () => {
+      const handleObjectChange = () => {
         onAnnotationChange(canvas.getObjects());
       };
 
-      const handleObjectRemoved = () => {
-        onAnnotationChange(canvas.getObjects());
-      };
-
-      const handleObjectModified = () => {
-        onAnnotationChange(canvas.getObjects());
-      };
-
-      canvas.on('object:added', handleObjectAdded);
-      canvas.on('object:removed', handleObjectRemoved);
-      canvas.on('object:modified', handleObjectModified);
+      canvas.on('object:added', handleObjectChange);
+      canvas.on('object:removed', handleObjectChange);
+      canvas.on('object:modified', handleObjectChange);
 
       return () => {
-        canvas.off('object:added', handleObjectAdded);
-        canvas.off('object:removed', handleObjectRemoved);
-        canvas.off('object:modified', handleObjectModified);
+        canvas.off('object:added', handleObjectChange);
+        canvas.off('object:removed', handleObjectChange);
+        canvas.off('object:modified', handleObjectChange);
       };
     }
   }, [canvas, onAnnotationChange]);
@@ -259,6 +202,7 @@ const DrawingCanvas = ({
           description: "Object detection has been stopped",
         });
       }
+      return;
     }
 
     if (!canvas) return;
@@ -358,57 +302,12 @@ const DrawingCanvas = ({
 
   return (
     <div className="relative">
-      <div className="absolute top-4 left-4 flex flex-col gap-2">
-        <Button
-          variant={activeTool === 'select' ? 'default' : 'outline'}
-          size="icon"
-          onClick={() => handleToolClick('select')}
-        >
-          <MousePointer className="h-4 w-4" />
-        </Button>
-        <Button
-          variant={activeTool === 'draw' ? 'default' : 'outline'}
-          size="icon"
-          onClick={() => handleToolClick('draw')}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button
-          variant={activeTool === 'rectangle' ? 'default' : 'outline'}
-          size="icon"
-          onClick={() => handleToolClick('rectangle')}
-        >
-          <Square className="h-4 w-4" />
-        </Button>
-        <Button
-          variant={activeTool === 'circle' ? 'default' : 'outline'}
-          size="icon"
-          onClick={() => handleToolClick('circle')}
-        >
-          <CircleIcon className="h-4 w-4" />
-        </Button>
-        <Button
-          variant={activeTool === 'player-track' ? 'default' : 'outline'}
-          size="icon"
-          onClick={() => handleToolClick('player-track')}
-        >
-          <Target className="h-4 w-4" />
-        </Button>
-        <Button
-          variant={activeTool === 'yolo' ? 'default' : 'outline'}
-          size="icon"
-          onClick={() => handleToolClick('yolo')}
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handleClear}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+      <DrawingToolbar 
+        activeTool={activeTool}
+        isTracking={isTracking}
+        onToolClick={handleToolClick}
+        onClear={handleClear}
+      />
       <canvas ref={canvasRef} className="absolute top-0 left-0 pointer-events-auto" />
     </div>
   );
