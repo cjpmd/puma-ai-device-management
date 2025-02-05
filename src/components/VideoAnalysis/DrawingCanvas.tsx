@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from 'react';
-import { Canvas as FabricCanvas, Circle, Rect, PencilBrush, Text } from 'fabric';
+import { Canvas as FabricCanvas, Circle, Rect, PencilBrush, Text, Object as FabricObject } from 'fabric';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,13 @@ interface DrawingCanvasProps {
   currentTime?: number;
   videoRef?: React.RefObject<HTMLVideoElement>;
   onAnnotationChange?: (annotations: any) => void;
+}
+
+// Define a custom type for Fabric objects with data property
+interface CustomFabricObject extends FabricObject {
+  data?: {
+    type: string;
+  };
 }
 
 const DrawingCanvas = ({ 
@@ -115,10 +122,9 @@ const DrawingCanvas = ({
       const predictions = await model.detect(detectionCanvas);
 
       // Clear previous detections
-      const objects = canvas.getObjects();
+      const objects = canvas.getObjects() as CustomFabricObject[];
       objects.forEach(obj => {
-        const objectData = (obj as any).data;
-        if (objectData?.type === 'detection') {
+        if (obj.data?.type === 'detection') {
           canvas.remove(obj);
         }
       });
@@ -158,18 +164,16 @@ const DrawingCanvas = ({
 
         // Store detection in database if videoId is provided
         if (videoId && video.currentTime) {
-          const { error } = supabase
-            .from('object_detections')
-            .insert({
-              video_id: videoId,
-              frame_time: video.currentTime,
-              object_class: prediction.class,
-              confidence: prediction.score,
-              x_coord: x / width,
-              y_coord: y / height,
-              width: boxWidth / width,
-              height: boxHeight / height
-            });
+          const { error } = supabase.from('object_detections').insert({
+            video_id: videoId,
+            frame_time: video.currentTime,
+            object_class: prediction.class,
+            confidence: prediction.score,
+            x_coord: x / width,
+            y_coord: y / height,
+            width: boxWidth / width,
+            height: boxHeight / height
+          });
           
           if (error) console.error('Error storing detection:', error);
         }
