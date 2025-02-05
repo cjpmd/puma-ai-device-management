@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -7,10 +8,19 @@ interface VideoPlayerProps {
   videoUrl: string;
   onTimeUpdate?: (currentTime: number) => void;
   isPlaying?: boolean;
+  onTogglePlay?: () => void;
+  videoRef?: React.RefObject<HTMLVideoElement>;
 }
 
-const VideoPlayer = ({ videoUrl, onTimeUpdate, isPlaying = false }: VideoPlayerProps) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
+const VideoPlayer = ({ 
+  videoUrl, 
+  onTimeUpdate, 
+  isPlaying = false,
+  onTogglePlay,
+  videoRef: externalVideoRef 
+}: VideoPlayerProps) => {
+  const internalVideoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = externalVideoRef || internalVideoRef;
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -97,7 +107,7 @@ const VideoPlayer = ({ videoUrl, onTimeUpdate, isPlaying = false }: VideoPlayerP
         <Button variant="outline" size="icon" onClick={skipBackward}>
           <SkipBack className="h-4 w-4" />
         </Button>
-        <Button onClick={() => {}} variant="outline" size="icon">
+        <Button onClick={onTogglePlay} variant="outline" size="icon">
           {isPlaying ? (
             <Pause className="h-4 w-4" />
           ) : (

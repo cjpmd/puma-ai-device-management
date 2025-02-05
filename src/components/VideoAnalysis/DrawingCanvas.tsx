@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Canvas as FabricCanvas, Circle, Rect, PencilBrush } from 'fabric';
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import * as tf from '@tensorflow/tfjs';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import { 
   Pencil, 
   Square, 
@@ -10,19 +14,14 @@ import {
   UserSquare2,
   Target,
   Eye,
-  Play,
-  Pause
 } from 'lucide-react';
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
-import * as tf from '@tensorflow/tfjs';
-import * as cocoSsd from '@tensorflow-models/coco-ssd';
 
 interface DrawingCanvasProps {
   width: number;
   height: number;
   videoId?: string;
   currentTime?: number;
+  videoRef?: React.RefObject<HTMLVideoElement>;
   onAnnotationChange?: (annotations: any) => void;
 }
 
@@ -31,6 +30,7 @@ const DrawingCanvas = ({
   height, 
   videoId,
   currentTime,
+  videoRef,
   onAnnotationChange 
 }: DrawingCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,6 +38,8 @@ const DrawingCanvas = ({
   const [activeTool, setActiveTool] = useState<'select' | 'draw' | 'rectangle' | 'circle' | 'player-track' | 'yolo'>('select');
   const [isTracking, setIsTracking] = useState(false);
   const [model, setModel] = useState<cocoSsd.ObjectDetection | null>(null);
+  const detectionCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animationFrameRef = useRef<number>();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -56,6 +58,12 @@ const DrawingCanvas = ({
 
     setCanvas(fabricCanvas);
 
+    // Create detection canvas
+    const detectionCanvas = document.createElement('canvas');
+    detectionCanvas.width = width;
+    detectionCanvas.height = height;
+    detectionCanvasRef.current = detectionCanvas;
+
     // Load COCO-SSD model
     const loadModel = async () => {
       try {
@@ -63,7 +71,7 @@ const DrawingCanvas = ({
         setModel(loadedModel);
         toast({
           title: "YOLO Model Loaded",
-          description: "Ready for player detection",
+          description: "Ready for object detection",
         });
       } catch (error) {
         console.error('Error loading model:', error);
@@ -79,6 +87,9 @@ const DrawingCanvas = ({
 
     return () => {
       fabricCanvas.dispose();
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
   }, [width, height]);
 
@@ -87,8 +98,119 @@ const DrawingCanvas = ({
     canvas.isDrawingMode = activeTool === 'draw';
   }, [activeTool, canvas]);
 
+  const detectObjects = async () => {
+    if (!model || !videoRef?.current || !detectionCanvasRef.current || !canvas) return;
+
+    const video = videoRef.current;
+    const detectionCanvas = detectionCanvasRef.current;
+    const ctx = detectionCanvas.getContext('2d');
+    if (!ctx) return;
+
+    // Draw the current video frame to the detection canvas
+    ctx.drawImage(video, 0, 0, width, height);
+
+    try {
+      // Detect objects in the frame
+      const predictions = await model.detect(detectionCanvas);
+
+      // Clear previous detections
+      const objects = canvas.getObjects();
+      objects.forEach(obj => {
+        if (obj.data?.type === 'detection') {
+          canvas.remove(obj);
+        }
+      });
+
+      // Draw new detections
+      predictions.forEach(prediction => {
+        const [x, y, boxWidth, boxHeight] = prediction.bbox;
+        
+        // Create rectangle for bounding box
+        const rect = new Rect({
+          left: x,
+          top: y,
+          width: boxWidth,
+          height: boxHeight,
+          fill: 'transparent',
+          stroke: '#00ff00',
+          strokeWidth: 2,
+          selectable: false,
+          data: { type: 'detection' }
+        });
+
+        // Add label
+        const text = new fabric.Text(
+          `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
+          {
+            left: x,
+            top: y - 20,
+            fontSize: 16,
+            fill: '#00ff00',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            selectable: false,
+            data: { type: 'detection' }
+          }
+        );
+
+        canvas.add(rect, text);
+
+        // Store detection in database
+        if (videoId) {
+          supabase.from('object_detections').insert({
+            video_id: videoId,
+            frame_time: video.currentTime,
+            object_class: prediction.class,
+            confidence: prediction.score,
+            x_coord: x / width,
+            y_coord: y / height,
+            width: boxWidth / width,
+            height: boxHeight / height
+          }).then(({ error }) => {
+            if (error) console.error('Error storing detection:', error);
+          });
+        }
+      });
+
+      canvas.renderAll();
+
+      if (isTracking) {
+        animationFrameRef.current = requestAnimationFrame(detectObjects);
+      }
+    } catch (error) {
+      console.error('Error during object detection:', error);
+    }
+  };
+
   const handleToolClick = async (tool: typeof activeTool) => {
     setActiveTool(tool);
+
+    if (tool === 'yolo') {
+      if (!model) {
+        toast({
+          title: "Model not ready",
+          description: "Please wait for the YOLO model to load",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsTracking(!isTracking);
+      if (!isTracking) {
+        detectObjects();
+        toast({
+          title: "Detection Started",
+          description: "Real-time object detection is now active",
+        });
+      } else {
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
+        toast({
+          title: "Detection Stopped",
+          description: "Object detection has been stopped",
+        });
+      }
+    }
 
     if (!canvas) return;
 
@@ -118,18 +240,6 @@ const DrawingCanvas = ({
         });
         canvas.add(circle);
         canvas.setActiveObject(circle);
-        break;
-
-      case 'yolo':
-        if (!model) {
-          toast({
-            title: "Model not ready",
-            description: "Please wait for the YOLO model to load",
-            variant: "destructive",
-          });
-          return;
-        }
-        setIsTracking(!isTracking);
         break;
 
       case 'player-track':

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+
+import { useState, useEffect, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { Upload, Play, Pause, Target, Eye } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import VideoPlayer from './VideoPlayer';
 import DrawingCanvas from './DrawingCanvas';
@@ -16,6 +17,7 @@ const VideoAnalysisTab = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [session, setSession] = useState<any>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -123,27 +125,16 @@ const VideoAnalysisTab = () => {
                 videoUrl={videoUrl} 
                 onTimeUpdate={handleTimeUpdate}
                 isPlaying={isPlaying}
+                onTogglePlay={togglePlayback}
+                videoRef={videoRef}
               />
               <DrawingCanvas 
                 width={800} 
                 height={450} 
                 videoId={videoId}
                 currentTime={currentTime}
+                videoRef={videoRef}
               />
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={togglePlayback}
-                >
-                  {isPlaying ? (
-                    <Pause className="h-4 w-4 mr-2" />
-                  ) : (
-                    <Play className="h-4 w-4 mr-2" />
-                  )}
-                  {isPlaying ? 'Pause' : 'Play'}
-                </Button>
-              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
