@@ -1,5 +1,6 @@
+
 import { useEffect, useRef, useState } from 'react';
-import { Canvas as FabricCanvas, Circle, Rect, PencilBrush } from 'fabric';
+import { Canvas as FabricCanvas, Circle, Rect, PencilBrush, Text } from 'fabric';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -116,7 +117,8 @@ const DrawingCanvas = ({
       // Clear previous detections
       const objects = canvas.getObjects();
       objects.forEach(obj => {
-        if (obj.data?.type === 'detection') {
+        const objectData = (obj as any).data;
+        if (objectData?.type === 'detection') {
           canvas.remove(obj);
         }
       });
@@ -139,7 +141,7 @@ const DrawingCanvas = ({
         });
 
         // Add label
-        const text = new fabric.Text(
+        const text = new Text(
           `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
           {
             left: x,
@@ -154,20 +156,22 @@ const DrawingCanvas = ({
 
         canvas.add(rect, text);
 
-        // Store detection in database
-        if (videoId) {
-          supabase.from('object_detections').insert({
-            video_id: videoId,
-            frame_time: video.currentTime,
-            object_class: prediction.class,
-            confidence: prediction.score,
-            x_coord: x / width,
-            y_coord: y / height,
-            width: boxWidth / width,
-            height: boxHeight / height
-          }).then(({ error }) => {
-            if (error) console.error('Error storing detection:', error);
-          });
+        // Store detection in database if videoId is provided
+        if (videoId && video.currentTime) {
+          const { error } = supabase
+            .from('object_detections')
+            .insert({
+              video_id: videoId,
+              frame_time: video.currentTime,
+              object_class: prediction.class,
+              confidence: prediction.score,
+              x_coord: x / width,
+              y_coord: y / height,
+              width: boxWidth / width,
+              height: boxHeight / height
+            });
+          
+          if (error) console.error('Error storing detection:', error);
         }
       });
 
