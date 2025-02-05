@@ -1,4 +1,3 @@
-```typescript
 import { useEffect, useRef, useState } from 'react';
 import { Canvas as FabricCanvas, Circle, Rect, PencilBrush, Text, Object as FabricObject } from 'fabric';
 import { Button } from "@/components/ui/button";
@@ -416,4 +415,3 @@ const DrawingCanvas = ({
 };
 
 export default DrawingCanvas;
-```
