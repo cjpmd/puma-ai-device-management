@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { Canvas as FabricCanvas, Circle, Rect, PencilBrush, Text, Object as FabricObject } from 'fabric';
 import { useToast } from "@/components/ui/use-toast";
@@ -6,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import DrawingToolbar from './DrawingToolbar';
 import { useObjectDetection } from './hooks/useObjectDetection';
 import { storeDetection } from './services/detectionService';
+import { useObjectTracking, TrackingResult } from './hooks/useObjectTracking';
 
 interface DrawingCanvasProps {
   width: number;
@@ -38,7 +38,8 @@ const DrawingCanvas = ({
   const animationFrameRef = useRef<number>();
   const { toast } = useToast();
   const model = useObjectDetection();
-
+  const tracking = useObjectTracking();
+  
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -173,33 +174,126 @@ const DrawingCanvas = ({
     }
   }, [canvas, onAnnotationChange]);
 
+  const detectAndTrack = async () => {
+    if (!tracking.model || !videoRef?.current || !detectionCanvasRef.current || !canvas) return;
+
+    const video = videoRef.current;
+    const detectionCanvas = detectionCanvasRef.current;
+    const ctx = detectionCanvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, width, height);
+
+    try {
+      const predictions = await tracking.model.detect(detectionCanvas);
+      
+      // Clear previous detections
+      const objects = canvas.getObjects() as CustomFabricObject[];
+      objects.forEach(obj => {
+        if (obj.data?.type === 'detection' || obj.data?.type === 'tracking') {
+          canvas.remove(obj);
+        }
+      });
+
+      // Process and store detections
+      const trackingResults: TrackingResult[] = predictions.map((pred, index) => ({
+        trackId: index + 1, // Simple tracking ID for now
+        bbox: pred.bbox as [number, number, number, number],
+        class: pred.class,
+        confidence: pred.score
+      }));
+
+      // Draw tracking results
+      trackingResults.forEach(result => {
+        const [x, y, boxWidth, boxHeight] = result.bbox;
+        
+        const rect = new Rect({
+          left: x,
+          top: y,
+          width: boxWidth,
+          height: boxHeight,
+          fill: 'transparent',
+          stroke: '#00ff00',
+          strokeWidth: 2,
+          selectable: false,
+          data: { type: 'tracking' }
+        });
+
+        const text = new Text(
+          `${result.class} (${Math.round(result.confidence * 100)}%)`,
+          {
+            left: x,
+            top: y - 20,
+            fontSize: 16,
+            fill: '#00ff00',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            selectable: false,
+            data: { type: 'tracking' }
+          }
+        );
+
+        canvas.add(rect, text);
+      });
+
+      if (videoId && video.currentTime) {
+        try {
+          await tracking.saveTrackingResults(
+            videoId,
+            Math.floor(video.currentTime * 30), // Assuming 30fps
+            trackingResults
+          );
+        } catch (error) {
+          console.error('Error storing tracking results:', error);
+          toast({
+            title: "Error",
+            description: "Failed to store tracking results",
+            variant: "destructive",
+          });
+        }
+      }
+
+      canvas.renderAll();
+
+      if (tracking.isTracking) {
+        animationFrameRef.current = requestAnimationFrame(detectAndTrack);
+      }
+    } catch (error) {
+      console.error('Error during tracking:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process tracking",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleToolClick = async (tool: typeof activeTool) => {
     setActiveTool(tool);
 
     if (tool === 'yolo') {
-      if (!model) {
+      if (!tracking.model) {
         toast({
           title: "Model not ready",
-          description: "Please wait for the YOLO model to load",
+          description: "Please wait for the tracking model to load",
           variant: "destructive",
         });
         return;
       }
 
-      setIsTracking(!isTracking);
-      if (!isTracking) {
-        detectObjects();
+      tracking.setIsTracking(!tracking.isTracking);
+      if (!tracking.isTracking) {
+        detectAndTrack();
         toast({
-          title: "Detection Started",
-          description: "Real-time object detection is now active",
+          title: "Tracking Started",
+          description: "Real-time player tracking is now active",
         });
       } else {
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
         }
         toast({
-          title: "Detection Stopped",
-          description: "Object detection has been stopped",
+          title: "Tracking Stopped",
+          description: "Player tracking has been stopped",
         });
       }
       return;

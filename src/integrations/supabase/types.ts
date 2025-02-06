@@ -202,6 +202,56 @@ export type Database = {
           },
         ]
       }
+      deep_tracking_results: {
+        Row: {
+          class_name: string
+          confidence: number
+          created_at: string | null
+          frame_number: number
+          height: number
+          id: string
+          track_id: number
+          video_id: string | null
+          width: number
+          x_coord: number
+          y_coord: number
+        }
+        Insert: {
+          class_name: string
+          confidence: number
+          created_at?: string | null
+          frame_number: number
+          height: number
+          id?: string
+          track_id: number
+          video_id?: string | null
+          width: number
+          x_coord: number
+          y_coord: number
+        }
+        Update: {
+          class_name?: string
+          confidence?: number
+          created_at?: string | null
+          frame_number?: number
+          height?: number
+          id?: string
+          track_id?: number
+          video_id?: string | null
+          width?: number
+          x_coord?: number
+          y_coord?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deep_tracking_results_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "video_analysis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       devices: {
         Row: {
           assigned_player_id: string | null
