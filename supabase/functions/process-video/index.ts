@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 
@@ -12,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { videoId, frameNumber, frameData, playerIds } = await req.json()
+    const { videoId, frameNumber, frameData } = await req.json()
     
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -27,7 +28,7 @@ serve(async (req) => {
 
     console.log('Generated detections:', detections)
 
-    // Store detections
+    // Store detections without player_id for now
     const { error } = await supabase
       .from('player_tracking')
       .insert(detections.map(detection => ({
@@ -35,8 +36,7 @@ serve(async (req) => {
         frame_number: frameNumber,
         x_coord: detection.x,
         y_coord: detection.y,
-        confidence: detection.confidence,
-        player_id: detection.playerId
+        confidence: detection.confidence
       })))
 
     if (error) {
@@ -60,12 +60,10 @@ serve(async (req) => {
 })
 
 async function processFrame(frameData: string) {
-  // This would be replaced with actual ML processing in production
-  // For now, we'll return mock data
+  // Mock data with just coordinates and confidence, without player_id
   return [{
     x: Math.random() * 100,
     y: Math.random() * 100,
-    confidence: 0.95,
-    playerId: 'mock-player-1'
+    confidence: 0.95
   }]
 }
