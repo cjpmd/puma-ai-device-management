@@ -1,3 +1,4 @@
+
 import * as tf from '@tensorflow/tfjs';
 
 export type ActivityType = 'pass' | 'shot' | 'dribble' | 'touch' | 'no_possession';
@@ -84,14 +85,29 @@ export const validateSensorLoggerData = (data: any[]): boolean => {
 };
 
 export const convertSensorLoggerData = (data: SensorData[]): number[][] => {
+  // Filter out Location and Pedometer data, and interpret axes based on known watch orientation:
+  // y-axis: aligned with leg length
+  // x-axis: horizontal across leg
+  // z-axis: perpendicular to leg surface (dial facing up)
   return data
     .filter(entry => entry.sensor !== 'Location' && entry.sensor !== 'Pedometer')
-    .map(entry => [
-      parseFloat(entry.x),
-      parseFloat(entry.y),
-      parseFloat(entry.z),
-      parseFloat(entry.seconds_elapsed)
-    ]);
+    .map(entry => {
+      // Convert string values to numbers
+      const x = parseFloat(entry.x); // Side-to-side movement
+      const y = parseFloat(entry.y); // Up-down leg movement
+      const z = parseFloat(entry.z); // Forward-backward movement
+      const time = parseFloat(entry.seconds_elapsed);
+
+      // For accelerometer data, we account for gravity on z-axis (approximately -9.81 m/s^2)
+      if (entry.sensor === 'Accelerometer' || entry.sensor === 'AccelerometerUncalibrated') {
+        // Adjust z value to account for constant gravitational acceleration
+        const adjustedZ = z + 9.81; // Since dial is facing up, gravity is negative on z-axis
+        return [x, y, adjustedZ, time];
+      }
+
+      // For gyroscope data, values represent rotational velocity around each axis
+      return [x, y, z, time];
+    });
 };
 
 export const createModel = () => {
