@@ -314,6 +314,7 @@ export type Database = {
           event_type: string
           id: string
           period_number: number
+          team_number: number | null
           updated_at: string | null
         }
         Insert: {
@@ -323,6 +324,7 @@ export type Database = {
           event_type: string
           id?: string
           period_number: number
+          team_number?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -332,6 +334,7 @@ export type Database = {
           event_type?: string
           id?: string
           period_number?: number
+          team_number?: number | null
           updated_at?: string | null
         }
         Relationships: []
@@ -341,6 +344,7 @@ export type Database = {
           created_at: string | null
           festival_team_id: string | null
           id: string
+          is_captain: boolean | null
           is_substitute: boolean | null
           performance_category: string | null
           player_id: string | null
@@ -351,6 +355,7 @@ export type Database = {
           created_at?: string | null
           festival_team_id?: string | null
           id?: string
+          is_captain?: boolean | null
           is_substitute?: boolean | null
           performance_category?: string | null
           player_id?: string | null
@@ -361,6 +366,7 @@ export type Database = {
           created_at?: string | null
           festival_team_id?: string | null
           id?: string
+          is_captain?: boolean | null
           is_substitute?: boolean | null
           performance_category?: string | null
           player_id?: string | null
@@ -621,6 +627,8 @@ export type Database = {
           is_captain: boolean | null
           performance_category: string | null
           player_id: string | null
+          position: string | null
+          team_number: number | null
           updated_at: string | null
         }
         Insert: {
@@ -630,6 +638,8 @@ export type Database = {
           is_captain?: boolean | null
           performance_category?: string | null
           player_id?: string | null
+          position?: string | null
+          team_number?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -639,6 +649,8 @@ export type Database = {
           is_captain?: boolean | null
           performance_category?: string | null
           player_id?: string | null
+          position?: string | null
+          team_number?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1961,13 +1973,14 @@ export type Database = {
       team_selections: {
         Row: {
           created_at: string | null
+          duration_minutes: number | null
           event_id: string
           event_type: string
           id: string
-          is_captain: boolean | null
           is_substitute: boolean | null
           performance_category: string | null
           period_id: string | null
+          period_number: number | null
           player_id: string
           position: string
           team_number: number
@@ -1975,13 +1988,14 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          duration_minutes?: number | null
           event_id: string
           event_type: string
           id?: string
-          is_captain?: boolean | null
           is_substitute?: boolean | null
           performance_category?: string | null
           period_id?: string | null
+          period_number?: number | null
           player_id: string
           position: string
           team_number: number
@@ -1989,19 +2003,27 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          duration_minutes?: number | null
           event_id?: string
           event_type?: string
           id?: string
-          is_captain?: boolean | null
           is_substitute?: boolean | null
           performance_category?: string | null
           period_id?: string | null
+          period_number?: number | null
           player_id?: string
           position?: string
           team_number?: number
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_event_period"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "event_periods"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "team_selections_period_id_fkey"
             columns: ["period_id"]
@@ -2077,6 +2099,7 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          is_captain: boolean | null
           is_substitute: boolean | null
           performance_category: string | null
           player_id: string | null
@@ -2087,6 +2110,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          is_captain?: boolean | null
           is_substitute?: boolean | null
           performance_category?: string | null
           player_id?: string | null
@@ -2097,6 +2121,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          is_captain?: boolean | null
           is_substitute?: boolean | null
           performance_category?: string | null
           player_id?: string | null
