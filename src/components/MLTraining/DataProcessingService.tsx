@@ -58,7 +58,7 @@ export const useDataProcessingService = () => {
     });
 
     // Update counters for the UI
-    updateTrainingStats(newExamples);
+    updateTrainingStats(newTrainingExamples);
   };
 
   const updateTrainingStats = (newExamples: TrainingExample[]) => {
