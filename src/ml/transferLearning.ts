@@ -54,15 +54,15 @@ export const createTransferModel = async (
     
     if (layer.getClassName() === 'Dense') {
       model.add(tf.layers.dense({
-        units: config.units as number,
-        activation: config.activation as string,
+        units: Number(config.units),
+        activation: config.activation as tf.Activation,
         trainable: false
       }));
     } else if (layer.getClassName() === 'LSTM') {
       model.add(tf.layers.lstm({
-        units: config.units as number,
+        units: Number(config.units),
         returnSequences: Boolean(config.return_sequences),
-        activation: config.activation as string,
+        activation: config.activation as tf.Activation,
         trainable: false
       }));
     } else if (layer.getClassName() === 'Dropout') {
@@ -142,15 +142,15 @@ export const fineTuneModel = async (
     
     if (layer.getClassName() === 'Dense') {
       model.add(tf.layers.dense({
-        units: config.units as number,
-        activation: config.activation as string,
+        units: Number(config.units),
+        activation: config.activation as tf.Activation,
         trainable: isTrainable
       }));
     } else if (layer.getClassName() === 'LSTM') {
       model.add(tf.layers.lstm({
-        units: config.units as number,
+        units: Number(config.units),
         returnSequences: Boolean(config.return_sequences),
-        activation: config.activation as string,
+        activation: config.activation as tf.Activation,
         trainable: isTrainable
       }));
     } else if (layer.getClassName() === 'Dropout') {
@@ -188,7 +188,7 @@ export const fineTuneModel = async (
     callbacks: {
       onEpochEnd: (epoch, logs) => {
         if (logs) {
-          console.log(`Epoch ${epoch + 1}: loss = ${logs.loss.toFixed(4)}, accuracy = ${logs.acc.toFixed(4)}`);
+          console.log(`Epoch ${epoch + 1}: loss = ${logs.loss.toFixed(4)}, accuracy = ${logs.acc ? logs.acc.toFixed(4) : 'N/A'}`);
         }
       }
     }
@@ -196,8 +196,8 @@ export const fineTuneModel = async (
   
   // Save the fine-tuned model
   if (history && history.history && history.history.acc && history.history.acc.length > 0) {
-    const accuracy = history.history.acc[history.history.acc.length - 1];
-    await saveModelVersion(model, `fine-tuned-v${Date.now()}`, accuracy as number);
+    const accuracy = history.history.acc[history.history.acc.length - 1] as number;
+    await saveModelVersion(model, `fine-tuned-v${Date.now()}`, accuracy);
   }
   
   // Cleanup tensors

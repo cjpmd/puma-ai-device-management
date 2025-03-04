@@ -83,12 +83,10 @@ export const saveTrainingExamples = async (
   sessionId: string
 ): Promise<boolean> => {
   try {
-    // Instead of creating a new table, we'll update the ml_training_sessions table
-    // with a JSON field containing the training examples
+    // Update the ml_training_sessions table with a JSON field containing the training examples
     const { error } = await supabase
       .from('ml_training_sessions')
       .update({
-        // Use parameters JSON field to store the training examples
         parameters: JSON.stringify(examples)
       })
       .eq('id', sessionId);
