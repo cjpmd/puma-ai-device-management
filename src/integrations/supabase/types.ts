@@ -1345,6 +1345,7 @@ export type Database = {
           duration: number | null
           end_time: string | null
           id: string
+          parameters: Json | null
           player_id: string | null
           start_time: string
           updated_at: string | null
@@ -1357,6 +1358,7 @@ export type Database = {
           duration?: number | null
           end_time?: string | null
           id?: string
+          parameters?: Json | null
           player_id?: string | null
           start_time?: string
           updated_at?: string | null
@@ -1369,6 +1371,7 @@ export type Database = {
           duration?: number | null
           end_time?: string | null
           id?: string
+          parameters?: Json | null
           player_id?: string | null
           start_time?: string
           updated_at?: string | null
