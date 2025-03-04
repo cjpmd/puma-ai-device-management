@@ -37,31 +37,37 @@ export const createTransferModel = async (
   for (let i = 0; i < layersToKeep; i++) {
     const layer = baseModel.layers[i];
     // For each layer, create a new layer with the same configuration
-    // We cannot use clone() directly as it may not be available
     
     if (i === 0) {
       // For the first layer, we need to specify the input shape
+      // Get input shape from the layer input spec if available
+      const inputShape = layer.inputSpec ? 
+                         (layer.inputSpec[0] as any).shape?.slice(1) : 
+                         [null, 4]; // Default shape if not available
+      
       model.add(tf.layers.inputLayer({
-        inputShape: layer.inputShape.slice(1) // Remove batch dimension
+        inputShape
       }));
     }
     
+    const config = layer.getConfig();
+    
     if (layer.getClassName() === 'Dense') {
       model.add(tf.layers.dense({
-        units: (layer.outputShape as number[])[1],
-        activation: layer.getConfig().activation,
+        units: config.units as number,
+        activation: config.activation as tf.Activation,
         trainable: false
       }));
     } else if (layer.getClassName() === 'LSTM') {
       model.add(tf.layers.lstm({
-        units: (layer.outputShape as number[])[layer.getConfig().return_sequences ? 2 : 1],
-        returnSequences: layer.getConfig().return_sequences,
-        activation: layer.getConfig().activation,
+        units: config.units as number,
+        returnSequences: Boolean(config.return_sequences),
+        activation: config.activation as tf.Activation,
         trainable: false
       }));
     } else if (layer.getClassName() === 'Dropout') {
       model.add(tf.layers.dropout({
-        rate: layer.getConfig().rate
+        rate: Number(config.rate)
       }));
     }
   }
@@ -123,27 +129,33 @@ export const fineTuneModel = async (
     // Create a new layer with the same configuration
     if (i === 0) {
       // For the first layer, we need to specify the input shape
+      const inputShape = layer.inputSpec ? 
+                         (layer.inputSpec[0] as any).shape?.slice(1) : 
+                         [null, 4]; // Default shape if not available
+      
       model.add(tf.layers.inputLayer({
-        inputShape: layer.inputShape.slice(1) // Remove batch dimension
+        inputShape
       }));
     }
     
+    const config = layer.getConfig();
+    
     if (layer.getClassName() === 'Dense') {
       model.add(tf.layers.dense({
-        units: (layer.outputShape as number[])[1],
-        activation: layer.getConfig().activation,
+        units: config.units as number,
+        activation: config.activation as tf.Activation,
         trainable: isTrainable
       }));
     } else if (layer.getClassName() === 'LSTM') {
       model.add(tf.layers.lstm({
-        units: (layer.outputShape as number[])[layer.getConfig().return_sequences ? 2 : 1],
-        returnSequences: layer.getConfig().return_sequences,
-        activation: layer.getConfig().activation,
+        units: config.units as number,
+        returnSequences: Boolean(config.return_sequences),
+        activation: config.activation as tf.Activation,
         trainable: isTrainable
       }));
     } else if (layer.getClassName() === 'Dropout') {
       model.add(tf.layers.dropout({
-        rate: layer.getConfig().rate
+        rate: Number(config.rate)
       }));
     }
   }
@@ -175,14 +187,18 @@ export const fineTuneModel = async (
     validationSplit,
     callbacks: {
       onEpochEnd: (epoch, logs) => {
-        console.log(`Epoch ${epoch + 1}: loss = ${logs?.loss.toFixed(4)}, accuracy = ${logs?.acc.toFixed(4)}`);
+        if (logs) {
+          console.log(`Epoch ${epoch + 1}: loss = ${logs.loss.toFixed(4)}, accuracy = ${logs.acc.toFixed(4)}`);
+        }
       }
     }
   });
   
   // Save the fine-tuned model
-  const accuracy = history.history.acc[history.history.acc.length - 1];
-  await saveModelVersion(model, `fine-tuned-v${Date.now()}`, accuracy);
+  if (history && history.history && history.history.acc && history.history.acc.length > 0) {
+    const accuracy = history.history.acc[history.history.acc.length - 1];
+    await saveModelVersion(model, `fine-tuned-v${Date.now()}`, accuracy);
+  }
   
   // Cleanup tensors
   xs.dispose();

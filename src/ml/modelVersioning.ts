@@ -6,7 +6,7 @@ export interface ModelVersion {
   id: string;
   version: string;
   accuracy: number;
-  parameters?: tf.io.WeightsManifestEntry[];
+  parameters?: string; // Store as JSON string
   created_at: string;
   updated_at: string;
 }
@@ -20,8 +20,8 @@ export const serializeModel = async (model: tf.Sequential): Promise<any> => {
   const serializedWeights = await Promise.all(
     weights.map(async (w) => {
       const tensorData = await w.data();
-      // Use type assertion to handle missing 'name' property
-      const layerName = (w as any).name || 'unnamed';
+      // Get layer name from tensor's description or use a default
+      const layerName = w.name || 'unnamed';
       return {
         name: layerName,
         data: Array.from(tensorData),
@@ -48,7 +48,7 @@ export const deserializeModel = async (
     // Recreation using tf.sequential()
     for (const layer of architecture.config.layers) {
       if (layer.config) {
-        const layerConfig = {
+        const layerConfig: any = {
           units: layer.config.units,
           activation: layer.config.activation,
           inputShape: layer.config.batch_input_shape ? 
@@ -60,11 +60,11 @@ export const deserializeModel = async (
         } else if (layer.class_name === 'LSTM') {
           model.add(tf.layers.lstm({
             ...layerConfig,
-            returnSequences: layer.config.return_sequences
+            returnSequences: layer.config.return_sequences === 'true' || layer.config.return_sequences === true
           }));
         } else if (layer.class_name === 'Dropout') {
           model.add(tf.layers.dropout({
-            rate: layer.config.rate
+            rate: Number(layer.config.rate)
           }));
         }
       }
@@ -201,14 +201,22 @@ export const getAllModelVersions = async (): Promise<ModelVersion[]> => {
     const { data, error } = await supabase
       .from('ml_models')
       .select('*')
-      .order('training_date', { ascending: false });
+      .order('created_at', { ascending: false });
     
     if (error || !data) {
       console.error('Error fetching model versions:', error);
       return [];
     }
     
-    return data as ModelVersion[];
+    // Convert data to ModelVersion type
+    return data.map(item => ({
+      id: item.id,
+      version: item.version,
+      accuracy: item.accuracy,
+      parameters: item.parameters as string,
+      created_at: item.created_at,
+      updated_at: item.updated_at
+    }));
   } catch (error) {
     console.error('Error fetching model versions:', error);
     return [];

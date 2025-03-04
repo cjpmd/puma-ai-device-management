@@ -46,7 +46,7 @@ const ModelVersionsTable = ({
                     <TableCell className="font-medium">{version.version}</TableCell>
                     <TableCell>{version.accuracy.toFixed(1)}%</TableCell>
                     <TableCell>
-                      {format(new Date(version.trainingDate), "MMM d, yyyy")}
+                      {format(new Date(version.created_at), "MMM d, yyyy")}
                     </TableCell>
                     <TableCell className="text-right space-x-1">
                       <Button 
