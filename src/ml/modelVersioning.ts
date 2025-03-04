@@ -1,17 +1,6 @@
-
 import * as tf from '@tensorflow/tfjs';
 import { supabase } from '@/integrations/supabase/client';
-
-// Interface for a model version
-export interface ModelVersion {
-  id: string;
-  version: string;
-  accuracy: number;
-  parameters: string; // Store parameters as a JSON string
-  created_at: string;
-  updated_at: string;
-  model_file_path?: string;
-}
+import { ModelVersion, WeightsManifestEntry } from './types';
 
 /**
  * Save model weights as JSON
@@ -83,7 +72,7 @@ export const loadModelById = async (modelId: string): Promise<tf.Sequential> => 
       throw new Error('Model not found');
     }
     
-    return loadModelFromParameters(data.parameters);
+    return loadModelFromParameters(data.parameters as string);
   } catch (error) {
     console.error('Error loading model:', error);
     throw error;
@@ -166,6 +155,7 @@ export const getAllModelVersions = async (): Promise<ModelVersion[]> => {
       parameters: typeof item.parameters === 'string' ? item.parameters : JSON.stringify(item.parameters),
       created_at: item.created_at,
       updated_at: item.updated_at,
+      training_date: item.training_date || item.created_at,
       model_file_path: item.model_file_path
     }));
   } catch (error) {

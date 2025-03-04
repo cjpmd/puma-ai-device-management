@@ -1,251 +1,236 @@
-
+// Modified imports to include new type definitions
 import * as tf from '@tensorflow/tfjs';
 import { supabase } from '@/integrations/supabase/client';
-import { ActivityType, TrainingExample, convertSensorLoggerData, SensorData } from './activityRecognition';
-import { createModel, trainModel } from './activityRecognition';
-import { saveModelVersion } from './modelVersioning';
-
-// Define the session data interface to include parameters
-interface SessionData {
-  id: string;
-  activity_type: string;
-  start_time: string;
-  end_time: string;
-  duration: number;
-  player_id: string;
-  device_id: number;
-  video_timestamp: number;
-  created_at: string;
-  updated_at: string;
-  parameters?: any; // Add parameters field for training data
-}
-
-// Interface for Supabase query result
-interface SessionQueryResult {
-  data: SessionData[] | null;
-  error: any;
-}
+import { ActivityType, TrainingExample, validateSensorLoggerData, convertSensorLoggerData } from './activityRecognition';
+import { MLTrainingSession, SessionData } from './types';
 
 /**
- * Process all sensor recordings from a specific session and convert them to training examples
+ * Process a batch of raw sensor data files
  */
-export const processSensorRecordings = async (
-  sessionId: string,
-  activityType: ActivityType
+export const processSensorDataBatch = async (
+  files: File[],
+  labelCallback: (data: any) => ActivityType
 ): Promise<TrainingExample[]> => {
-  try {
-    // Get sensor recordings for this session
-    const { data: recordings, error } = await supabase
-      .from('sensor_recordings')
-      .select('*')
-      .eq('training_session_id', sessionId)
-      .order('timestamp', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching sensor recordings:', error);
-      return [];
-    }
-
-    if (!recordings || recordings.length === 0) {
-      console.log('No sensor recordings found for session', sessionId);
-      return [];
-    }
-
-    // Process and convert the sensor data
-    const sensorData: SensorData[] = recordings.map(recording => ({
-      x: recording.x.toString(),
-      y: recording.y.toString(),
-      z: recording.z ? recording.z.toString() : '0',
-      seconds_elapsed: (recording.timestamp / 1000).toString(),
-      sensor: recording.sensor_type,
-      time: new Date(recording.timestamp).toISOString()
-    }));
-
-    // Convert to format expected by model
-    const convertedData = convertSensorLoggerData(sensorData);
-
-    // Create a training example
-    const trainingExample: TrainingExample = {
-      sensorData: convertedData,
-      label: activityType,
-      videoTimestamp: Date.now(),
-      duration: (recordings[recordings.length - 1].timestamp - recordings[0].timestamp) / 1000
-    };
-
-    // Update the session with the processed training data
-    const { error: updateError } = await supabase
-      .from('ml_training_sessions')
-      .update({
-        parameters: JSON.stringify([trainingExample])
-      })
-      .eq('id', sessionId);
-
-    if (updateError) {
-      console.error('Error updating session with training data:', updateError);
-    }
-
-    return [trainingExample];
-  } catch (error) {
-    console.error('Error processing sensor recordings:', error);
-    return [];
-  }
-};
-
-/**
- * Batch process all unprocessed training sessions
- */
-export const batchProcessSessions = async (): Promise<number> => {
-  try {
-    // Get all sessions that have recordings but no processed examples
-    const { data: sessions, error }: SessionQueryResult = await supabase
-      .from('ml_training_sessions')
-      .select('*')
-      .is('parameters', null)
-      .not('end_time', 'is', null);
-
-    if (error) {
-      console.error('Error fetching sessions:', error);
-      return 0;
-    }
-
-    if (!sessions || sessions.length === 0) {
-      console.log('No unprocessed sessions found');
-      return 0;
-    }
-
-    console.log(`Found ${sessions.length} unprocessed sessions`);
-    let processedCount = 0;
-
-    // Process each session
-    for (const session of sessions) {
-      const activityType = session.activity_type as ActivityType;
+  const examples: TrainingExample[] = [];
+  
+  for (const file of files) {
+    try {
+      // Read the file as text
+      const text = await file.text();
       
-      const examples = await processSensorRecordings(session.id, activityType);
+      // Parse the JSON data
+      const data = JSON.parse(text);
       
-      if (examples.length > 0) {
-        // Update the session to mark it as processed
-        await supabase
-          .from('ml_training_sessions')
-          .update({
-            parameters: JSON.stringify(examples)
-          })
-          .eq('id', session.id);
-        
-        processedCount++;
-      }
-    }
-
-    return processedCount;
-  } catch (error) {
-    console.error('Error in batch processing:', error);
-    return 0;
-  }
-};
-
-/**
- * Process video annotations and convert them to training examples
- */
-export const processVideoAnnotations = async (videoId: string): Promise<TrainingExample[]> => {
-  try {
-    // Get video annotations
-    const { data: annotations, error } = await supabase
-      .from('video_annotations')
-      .select('*')
-      .eq('video_id', videoId)
-      .eq('annotation_type', 'activity');
-
-    if (error) {
-      console.error('Error fetching video annotations:', error);
-      return [];
-    }
-
-    if (!annotations || annotations.length === 0) {
-      console.log('No activity annotations found for video', videoId);
-      return [];
-    }
-
-    const trainingExamples: TrainingExample[] = [];
-
-    // Process each annotation
-    for (const annotation of annotations) {
-      const annotationData = annotation.data as any;
-      
-      if (!annotationData || !annotationData.activity || !annotationData.sensorData) {
+      // Validate the data format
+      if (!validateSensorLoggerData(data)) {
+        console.error(`Invalid data format in file: ${file.name}`);
         continue;
       }
-
-      // Convert to training example
-      trainingExamples.push({
-        sensorData: annotationData.sensorData,
-        label: annotationData.activity as ActivityType,
-        videoTimestamp: annotation.timestamp,
-        duration: annotationData.duration || 0
+      
+      // Convert the data to a format suitable for ML
+      const processedData = convertSensorLoggerData(data);
+      
+      // Get the activity type label
+      const label = labelCallback(data);
+      
+      // Create a training example
+      examples.push({
+        sensorData: processedData,
+        label,
+        videoTimestamp: Date.now(), // Using current timestamp as default
+        duration: processedData.length > 0 ? 
+          Math.max(...processedData.map(d => d[3])) - Math.min(...processedData.map(d => d[3])) : 
+          0
       });
+    } catch (error) {
+      console.error(`Error processing file ${file.name}:`, error);
     }
+  }
+  
+  return examples;
+};
 
-    return trainingExamples;
+/**
+ * Create training session for a batch of sensor data
+ */
+export const createTrainingSession = async (
+  examples: TrainingExample[],
+  activityType: ActivityType,
+  deviceId?: number,
+  playerId?: string
+): Promise<string | null> => {
+  try {
+    // Insert new training session
+    const { data, error } = await supabase
+      .from('ml_training_sessions')
+      .insert({
+        activity_type: activityType,
+        device_id: deviceId,
+        player_id: playerId,
+        start_time: new Date().toISOString(),
+        end_time: new Date().toISOString(),
+        duration: examples.reduce((sum, ex) => sum + (ex.duration || 0), 0),
+        parameters: JSON.stringify(examples)
+      } as MLTrainingSession)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error creating training session:', error);
+      return null;
+    }
+    
+    return data.id;
   } catch (error) {
-    console.error('Error processing video annotations:', error);
-    return [];
+    console.error('Error creating training session:', error);
+    return null;
   }
 };
 
 /**
- * Train model using all available training data
+ * Process a batch of training sessions
  */
-export const batchTrainModel = async (): Promise<{ model: tf.Sequential; accuracy: number }> => {
-  try {
-    // Get all training sessions with processed data
-    const { data: sessions, error }: SessionQueryResult = await supabase
-      .from('ml_training_sessions')
-      .select('*')
-      .not('parameters', 'is', null);
-
-    if (error) {
-      console.error('Error fetching training sessions:', error);
-      throw new Error('Failed to fetch training data');
-    }
-
-    if (!sessions || sessions.length === 0) {
-      console.log('No training data available');
-      throw new Error('No training data available');
-    }
-
-    // Combine all training examples
-    let allExamples: TrainingExample[] = [];
-
-    for (const session of sessions) {
+export const processTrainingSessions = async (
+  sessionIds: string[]
+): Promise<TrainingExample[]> => {
+  const examples: TrainingExample[] = [];
+  
+  for (const sessionId of sessionIds) {
+    try {
+      // Get the session data
+      const { data, error } = await supabase
+        .from('ml_training_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single();
+      
+      if (error || !data) {
+        console.error(`Error loading session ${sessionId}:`, error);
+        continue;
+      }
+      
+      // Cast data to SessionData type
+      const session = data as SessionData;
+      
+      // Check if the session has pre-processed examples
       if (session.parameters) {
         try {
           const sessionExamples = JSON.parse(session.parameters);
+          
           if (Array.isArray(sessionExamples)) {
-            allExamples = allExamples.concat(sessionExamples);
+            // Add the examples to the list
+            examples.push(...sessionExamples.map((ex: any) => ({
+              sensorData: ex.sensorData,
+              label: ex.label as ActivityType,
+              videoTimestamp: ex.videoTimestamp || 0,
+              duration: ex.duration || 0
+            })));
           }
-        } catch (e) {
-          console.error('Error parsing training data from session', session.id, e);
+        } catch (parseError) {
+          console.error(`Error parsing examples from session ${sessionId}:`, parseError);
         }
+      } else {
+        // Process raw data if available
+        // This is a placeholder for any additional processing logic
+        console.log(`Session ${sessionId} has no pre-processed examples`);
       }
+    } catch (error) {
+      console.error(`Error processing session ${sessionId}:`, error);
     }
+  }
+  
+  return examples;
+};
 
-    if (allExamples.length === 0) {
-      throw new Error('No valid training examples found');
+/**
+ * Update a training session with processed examples
+ */
+export const updateTrainingSession = async (
+  sessionId: string,
+  examples: TrainingExample[]
+): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('ml_training_sessions')
+      .update({
+        parameters: JSON.stringify(examples)
+      } as MLTrainingSession)
+      .eq('id', sessionId);
+    
+    if (error) {
+      console.error(`Error updating session ${sessionId}:`, error);
+      return false;
     }
-
-    console.log(`Training model with ${allExamples.length} examples`);
-
-    // Create and train the model
-    const model = createModel();
-    await trainModel(model, allExamples);
-
-    // Evaluate the model (using a simple accuracy estimate)
-    const accuracy = 0.85; // Use a fixed value or implement proper evaluation
-
-    // Save the model version
-    await saveModelVersion(model, 'batch-trained', accuracy);
-
-    return { model, accuracy };
+    
+    return true;
   } catch (error) {
-    console.error('Error in batch training:', error);
-    throw error;
+    console.error(`Error updating session ${sessionId}:`, error);
+    return false;
+  }
+};
+
+/**
+ * Delete a training session
+ */
+export const deleteTrainingSession = async (sessionId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('ml_training_sessions')
+      .delete()
+      .eq('id', sessionId);
+    
+    if (error) {
+      console.error(`Error deleting session ${sessionId}:`, error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(`Error deleting session ${sessionId}:`, error);
+    return false;
+  }
+};
+
+/**
+ * Get all training sessions
+ */
+export const getAllTrainingSessions = async (): Promise<SessionData[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('ml_training_sessions')
+      .select('*');
+    
+    if (error) {
+      console.error('Error fetching training sessions:', error);
+      return [];
+    }
+    
+    return data as SessionData[];
+  } catch (error) {
+    console.error('Error fetching training sessions:', error);
+    return [];
+  }
+};
+
+/**
+ * Get training session by ID
+ */
+export const getTrainingSessionById = async (sessionId: string): Promise<SessionData | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('ml_training_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
+    
+    if (error) {
+      console.error(`Error fetching session ${sessionId}:`, error);
+      return null;
+    }
+    
+    return data as SessionData;
+  } catch (error) {
+    console.error(`Error fetching session ${sessionId}:`, error);
+    return null;
   }
 };

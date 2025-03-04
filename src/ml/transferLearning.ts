@@ -2,6 +2,7 @@
 import * as tf from '@tensorflow/tfjs';
 import { TrainingExample, ActivityType } from './activityRecognition';
 import { saveModelVersion } from './modelVersioning';
+import { ActivationIdentifier } from './types';
 
 interface TransferLearningOptions {
   baseModelPath: string;
@@ -55,14 +56,14 @@ export const createTransferModel = async (
     if (layer.getClassName() === 'Dense') {
       model.add(tf.layers.dense({
         units: Number(config.units),
-        activation: config.activation as tf.Activation,
+        activation: config.activation as ActivationIdentifier,
         trainable: false
       }));
     } else if (layer.getClassName() === 'LSTM') {
       model.add(tf.layers.lstm({
         units: Number(config.units),
         returnSequences: Boolean(config.return_sequences),
-        activation: config.activation as tf.Activation,
+        activation: config.activation as ActivationIdentifier,
         trainable: false
       }));
     } else if (layer.getClassName() === 'Dropout') {
@@ -143,14 +144,14 @@ export const fineTuneModel = async (
     if (layer.getClassName() === 'Dense') {
       model.add(tf.layers.dense({
         units: Number(config.units),
-        activation: config.activation as tf.Activation,
+        activation: config.activation as ActivationIdentifier,
         trainable: isTrainable
       }));
     } else if (layer.getClassName() === 'LSTM') {
       model.add(tf.layers.lstm({
         units: Number(config.units),
         returnSequences: Boolean(config.return_sequences),
-        activation: config.activation as tf.Activation,
+        activation: config.activation as ActivationIdentifier,
         trainable: isTrainable
       }));
     } else if (layer.getClassName() === 'Dropout') {
@@ -196,8 +197,10 @@ export const fineTuneModel = async (
   
   // Save the fine-tuned model
   if (history && history.history && history.history.acc && history.history.acc.length > 0) {
-    const accuracy = history.history.acc[history.history.acc.length - 1] as number;
-    await saveModelVersion(model, `fine-tuned-v${Date.now()}`, accuracy);
+    const finalAccuracy = history.history.acc[history.history.acc.length - 1];
+    if (typeof finalAccuracy === 'number') {
+      await saveModelVersion(model, `fine-tuned-v${Date.now()}`, finalAccuracy);
+    }
   }
   
   // Cleanup tensors

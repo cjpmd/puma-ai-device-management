@@ -2,6 +2,7 @@
 import * as tf from '@tensorflow/tfjs';
 import { supabase } from '@/integrations/supabase/client';
 import { ActivityType, TrainingExample } from './activityRecognition';
+import { MLTrainingSession, SessionData } from './types';
 
 /**
  * Export training data to a JSON file
@@ -88,7 +89,7 @@ export const saveTrainingExamples = async (
       .from('ml_training_sessions')
       .update({
         parameters: JSON.stringify(examples)
-      })
+      } as MLTrainingSession)
       .eq('id', sessionId);
     
     if (error) {
@@ -133,11 +134,11 @@ export const loadTrainingExamples = async (sessionId?: string): Promise<Training
     // Combine examples from all sessions
     const allExamples: TrainingExample[] = [];
     
-    for (const session of data) {
+    for (const session of data as SessionData[]) {
       if (session.parameters) {
         try {
           // Parse the parameters field which contains our examples
-          const sessionExamples = JSON.parse(session.parameters as string);
+          const sessionExamples = JSON.parse(session.parameters);
           
           if (Array.isArray(sessionExamples)) {
             // Validate and convert to TrainingExample type
