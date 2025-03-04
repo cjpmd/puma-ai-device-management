@@ -1,19 +1,16 @@
 
-import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
 import { Play, Pause, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { supabase } from "@/integrations/supabase/client";
-import { SensorData, validateSensorLoggerData } from '@/ml/activityRecognition';
+import { Card, CardContent } from "@/components/ui/card";
 
 interface DataUploadTabProps {
   isRecording: boolean;
   totalPossessionTime: number;
   currentSessionId: string | null;
-  onVideoUpload: (videoURL: string) => void;
-  onSensorDataUpload: (sensorData: SensorData[]) => void;
+  onVideoUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onSensorDataUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onToggleRecording: () => void;
 }
 
@@ -25,87 +22,6 @@ const DataUploadTab = ({
   onSensorDataUpload,
   onToggleRecording,
 }: DataUploadTabProps) => {
-  const { toast } = useToast();
-
-  const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // Create a local URL for the video file
-      const videoURL = URL.createObjectURL(file);
-      onVideoUpload(videoURL);
-      
-      toast({
-        title: "Video stored locally",
-        description: "Video file has been stored locally. You can now add temporal annotations.",
-      });
-    }
-  };
-
-  const handleSensorDataUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && currentSessionId) {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = JSON.parse(e.target?.result as string);
-          if (validateSensorLoggerData(data)) {
-            const rawData = data as SensorData[];
-            onSensorDataUpload(rawData);
-            
-            // Store sensor recordings in Supabase
-            const sensorRecordings = rawData.map(reading => ({
-              training_session_id: currentSessionId,
-              sensor_type: reading.sensor,
-              x: parseFloat(reading.x),
-              y: parseFloat(reading.y),
-              z: parseFloat(reading.z),
-              timestamp: new Date(reading.time).getTime()
-            }));
-
-            const { error } = await supabase
-              .from('sensor_recordings')
-              .insert(sensorRecordings);
-
-            if (error) {
-              console.error('Error storing sensor data:', error);
-              toast({
-                title: "Error",
-                description: "Failed to store sensor data",
-                variant: "destructive",
-              });
-              return;
-            }
-
-            toast({
-              title: "Sensor data loaded",
-              description: "Sensor data has been validated and stored. Now you can add annotations.",
-            });
-          } else {
-            toast({
-              title: "Error",
-              description: "Invalid Sensor Logger data format",
-              variant: "destructive",
-            });
-          }
-        } catch (error) {
-          console.error('Error processing sensor data:', error);
-          toast({
-            title: "Error",
-            description: "Failed to parse sensor data",
-            variant: "destructive",
-          });
-        }
-      };
-      reader.readAsText(file);
-    } else {
-      toast({
-        title: "Error",
-        description: "No active training session",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <div className="space-y-4">
       <Alert>
@@ -123,47 +39,67 @@ const DataUploadTab = ({
         </AlertDescription>
       </Alert>
       
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium">Upload Training Data</h3>
-        <div className="flex gap-4">
-          <div className="flex-1">
-            <label className="block text-sm mb-2">Video Recording</label>
-            <Input
-              type="file"
-              accept="video/*"
-              onChange={handleVideoUpload}
-              className="cursor-pointer"
-              disabled={!isRecording}
-            />
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium">Upload Training Data</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm mb-2">Video Recording</label>
+                <Input
+                  type="file"
+                  accept="video/*"
+                  onChange={onVideoUpload}
+                  className="cursor-pointer"
+                  disabled={!isRecording}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Upload your MP4 video recording
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm mb-2">Sensor Logger Data (JSON)</label>
+                <Input
+                  type="file"
+                  accept=".json"
+                  onChange={onSensorDataUpload}
+                  className="cursor-pointer"
+                  disabled={!isRecording}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Upload JSON from Sensor Logger app
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="flex-1">
-            <label className="block text-sm mb-2">Sensor Logger Data (JSON)</label>
-            <Input
-              type="file"
-              accept=".json"
-              onChange={handleSensorDataUpload}
-              className="cursor-pointer"
-              disabled={!isRecording}
-            />
+        </CardContent>
+      </Card>
+      
+      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+        <Button
+          variant={isRecording ? 'destructive' : 'default'}
+          onClick={onToggleRecording}
+          className="w-full sm:w-auto"
+        >
+          {isRecording ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+          {isRecording ? 'Stop Recording' : 'Start Recording'}
+        </Button>
+        
+        <div className="text-center sm:text-right">
+          <div className="text-sm font-medium">Total Possession Time</div>
+          <div className="text-2xl">{Math.round(totalPossessionTime / 1000)}s</div>
+          <div className="text-xs text-muted-foreground">
+            {isRecording ? 'Recording active' : 'Ready to record'}
           </div>
         </div>
       </div>
       
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium">Recording Controls</h3>
-        <div className="flex gap-4 items-center">
-          <Button
-            variant={isRecording ? 'destructive' : 'default'}
-            onClick={onToggleRecording}
-          >
-            {isRecording ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
-            {isRecording ? 'Stop Recording' : 'Start Recording'}
-          </Button>
-          <div className="text-sm">
-            Total possession time: {Math.round(totalPossessionTime / 1000)}s
-          </div>
+      {isRecording && currentSessionId && (
+        <div className="bg-gray-50 p-3 rounded-md text-sm">
+          <div className="font-medium">Active Session ID</div>
+          <div className="text-muted-foreground break-all">{currentSessionId}</div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

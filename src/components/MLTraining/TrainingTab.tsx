@@ -1,11 +1,11 @@
 
-import { Upload } from 'lucide-react';
+import { Upload, Info, BarChart2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { ActivityType, TrainingExample } from '@/ml/activityRecognition';
 import { Progress } from "@/components/ui/progress";
-import { useState } from 'react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { InfoIcon } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useModelTrainingService } from './ModelTrainingService';
 
 interface TrainingTabProps {
   trainingData: TrainingExample[];
@@ -13,9 +13,7 @@ interface TrainingTabProps {
 }
 
 const TrainingTab = ({ trainingData, onStartTraining }: TrainingTabProps) => {
-  const [isTraining, setIsTraining] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [modelAccuracy, setModelAccuracy] = useState<number | null>(null);
+  const { isTraining, progress, modelAccuracy, startTraining } = useModelTrainingService();
   
   // Group training examples by activity type
   const activityTypes: ActivityType[] = ['pass', 'shot', 'dribble', 'touch', 'no_possession'];
@@ -38,46 +36,42 @@ const TrainingTab = ({ trainingData, onStartTraining }: TrainingTabProps) => {
   );
   
   const handleStartTraining = () => {
-    setIsTraining(true);
-    setProgress(0);
-    
-    // Simulate training progress
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        const newProgress = prev + 5;
-        if (newProgress >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            setIsTraining(false);
-            setModelAccuracy(Math.floor(Math.random() * 15) + 85); // Random accuracy between 85-99%
-            // Call the actual training function
-            onStartTraining();
-          }, 500);
-          return 100;
-        }
-        return newProgress;
-      });
-    }, 300);
+    startTraining();
+    // Call the actual training function passed from parent
+    onStartTraining();
   };
   
   return (
     <div className="space-y-6">
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium">Training Data Summary</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
-          {distributions.map(({ activity, count, percentage }) => (
-            <div key={activity} className="text-center p-2 bg-gray-100 rounded-md">
-              <div className="font-medium capitalize">{activity.replace('_', ' ')}</div>
-              <div className="text-2xl">{count}</div>
-              <div className="text-xs text-muted-foreground">examples ({percentage}%)</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center">
+            <BarChart2 className="h-4 w-4 mr-2" />
+            Training Data Distribution
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+            {distributions.map(({ activity, count, percentage }) => (
+              <div key={activity} className="text-center p-2 bg-gray-50 rounded-md">
+                <div className="font-medium capitalize">{activity.replace('_', ' ')}</div>
+                <div className="text-2xl">{count}</div>
+                <div className="text-xs text-muted-foreground">examples ({percentage}%)</div>
+                <Progress 
+                  value={(count / recommendedMin) * 100} 
+                  className="h-1 mt-2" 
+                  // Color based on having enough data
+                  indicator={count >= recommendedMin ? "bg-green-500" : "bg-amber-500"}
+                />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
       
       {!hasEnoughData && !isTraining && (
         <Alert>
-          <InfoIcon className="h-4 w-4" />
+          <Info className="h-4 w-4" />
           <AlertDescription>
             For best results, collect at least {recommendedMin} examples for each activity type.
           </AlertDescription>
@@ -85,28 +79,69 @@ const TrainingTab = ({ trainingData, onStartTraining }: TrainingTabProps) => {
       )}
       
       {isTraining && (
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Training progress</span>
-            <span>{progress}%</span>
-          </div>
-          <Progress value={progress} className="h-2" />
-        </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Training Progress</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Model training</span>
+                <span>{progress}%</span>
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="bg-gray-50 p-2 rounded-md">
+                <div className="text-muted-foreground">Current batch</div>
+                <div>{Math.floor(progress / 10)} / 10</div>
+              </div>
+              
+              <div className="bg-gray-50 p-2 rounded-md">
+                <div className="text-muted-foreground">Training examples</div>
+                <div>{totalExamples}</div>
+              </div>
+              
+              <div className="bg-gray-50 p-2 rounded-md">
+                <div className="text-muted-foreground">Learning rate</div>
+                <div>0.001</div>
+              </div>
+              
+              <div className="bg-gray-50 p-2 rounded-md">
+                <div className="text-muted-foreground">Batch size</div>
+                <div>32</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
       
       {modelAccuracy !== null && (
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Model accuracy</span>
-            <span>{modelAccuracy}%</span>
-          </div>
-          <Progress value={modelAccuracy} className="h-2 bg-gray-200">
-            <div 
-              className="h-full bg-green-500 rounded-full" 
-              style={{ width: `${modelAccuracy}%` }}
-            />
-          </Progress>
-        </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Model Evaluation</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Model accuracy</span>
+              <span>{modelAccuracy}%</span>
+            </div>
+            <Progress value={modelAccuracy} className="h-2">
+              <div 
+                className="h-full bg-green-500 rounded-full" 
+                style={{ width: `${modelAccuracy}%` }}
+              />
+            </Progress>
+            
+            <div className="text-xs text-muted-foreground mt-2 pt-2 border-t">
+              {modelAccuracy < 90 ? 
+                "Consider collecting more training data to improve model accuracy." :
+                "Good model accuracy achieved! You can now use this model for inference."
+              }
+            </div>
+          </CardContent>
+        </Card>
       )}
       
       <div className="pt-2">
