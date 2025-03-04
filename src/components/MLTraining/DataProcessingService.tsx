@@ -58,7 +58,7 @@ export const useDataProcessingService = () => {
     });
 
     // Update counters for the UI
-    updateTrainingStats(newTrainingExamples);
+    updateTrainingStats(newExamples);
   };
 
   const updateTrainingStats = (newExamples: TrainingExample[]) => {
@@ -67,7 +67,9 @@ export const useDataProcessingService = () => {
       .filter(ex => ex.label !== 'no_possession' && ex.duration)
       .reduce((total, ex) => total + (ex.duration || 0), 0);
     
-    setTotalPossessionTime(prev => prev + newPossessionTime);
+    // Fix: Instead of using a function to update the state, we'll calculate the new value first
+    // and then pass the new value directly to setTotalPossessionTime
+    setTotalPossessionTime(newPossessionTime);
     
     // If we have a session ID, update the session with the new data in Supabase
     if (currentSessionId) {

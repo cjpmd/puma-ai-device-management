@@ -60,8 +60,13 @@ const TrainingTab = ({ trainingData, onStartTraining }: TrainingTabProps) => {
                 <Progress 
                   value={(count / recommendedMin) * 100} 
                   className="h-1 mt-2" 
-                  // Color based on having enough data
-                  indicator={count >= recommendedMin ? "bg-green-500" : "bg-amber-500"}
+                  // Remove the custom indicator prop and use a styled div instead
+                />
+                {/* Apply color using a separate div with conditional styling */}
+                <div className={`h-1 mt-1 rounded-full ${
+                  count >= recommendedMin ? "bg-green-500" : "bg-amber-500"
+                }`} 
+                  style={{ width: `${Math.min((count / recommendedMin) * 100, 100)}%` }} 
                 />
               </div>
             ))}
@@ -127,12 +132,11 @@ const TrainingTab = ({ trainingData, onStartTraining }: TrainingTabProps) => {
               <span>Model accuracy</span>
               <span>{modelAccuracy}%</span>
             </div>
-            <Progress value={modelAccuracy} className="h-2">
-              <div 
-                className="h-full bg-green-500 rounded-full" 
-                style={{ width: `${modelAccuracy}%` }}
-              />
-            </Progress>
+            <Progress value={modelAccuracy} className="h-2" />
+            <div 
+              className="h-2 bg-green-500 rounded-full mt-1" 
+              style={{ width: `${modelAccuracy}%` }}
+            />
             
             <div className="text-xs text-muted-foreground mt-2 pt-2 border-t">
               {modelAccuracy < 90 ? 
