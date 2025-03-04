@@ -61,18 +61,20 @@ export const createTrainingSession = async (
   playerId?: string
 ): Promise<string | null> => {
   try {
-    // Insert new training session
+    // Insert new training session with parameters field included
+    const sessionData: MLTrainingSession = {
+      activity_type: activityType, // Ensure this is always provided
+      device_id: deviceId,
+      player_id: playerId,
+      start_time: new Date().toISOString(),
+      end_time: new Date().toISOString(),
+      duration: examples.reduce((sum, ex) => sum + (ex.duration || 0), 0),
+      parameters: JSON.stringify(examples)
+    };
+
     const { data, error } = await supabase
       .from('ml_training_sessions')
-      .insert({
-        activity_type: activityType, // Ensure this is always provided
-        device_id: deviceId,
-        player_id: playerId,
-        start_time: new Date().toISOString(),
-        end_time: new Date().toISOString(),
-        duration: examples.reduce((sum, ex) => sum + (ex.duration || 0), 0),
-        parameters: JSON.stringify(examples)
-      })
+      .insert(sessionData)
       .select()
       .single();
     
@@ -151,11 +153,14 @@ export const updateTrainingSession = async (
   examples: TrainingExample[]
 ): Promise<boolean> => {
   try {
+    // Make sure to use an object with only the parameters field that we're updating
+    const updateData = {
+      parameters: JSON.stringify(examples)
+    };
+
     const { error } = await supabase
       .from('ml_training_sessions')
-      .update({
-        parameters: JSON.stringify(examples)
-      })
+      .update(updateData)
       .eq('id', sessionId);
     
     if (error) {

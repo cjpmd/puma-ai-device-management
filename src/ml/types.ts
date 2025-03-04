@@ -38,7 +38,7 @@ export type SessionData = {
   start_time: string;
   end_time: string;
   duration: number;
-  parameters?: string;
+  parameters?: string; // Added to match Supabase table structure
   video_id?: string;
 };
 
