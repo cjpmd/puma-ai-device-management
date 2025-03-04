@@ -1,221 +1,147 @@
 
-import * as tf from '@tensorflow/tfjs';
 import { supabase } from '@/integrations/supabase/client';
-import { ActivityType, TrainingExample } from './activityRecognition';
+import { TrainingExample, ActivityType } from './activityRecognition';
 import { MLTrainingSession, SessionData } from './types';
 
-/**
- * Export training data to a JSON file
- */
-export const exportTrainingData = (examples: TrainingExample[]): string => {
-  const jsonData = JSON.stringify(examples, null, 2);
+// Function to export training data to a JSON file
+export const exportTrainingData = async (sessionIds: string[]): Promise<Blob> => {
+  // Fetch all selected sessions
+  const { data, error } = await supabase
+    .from('ml_training_sessions')
+    .select('*')
+    .in('id', sessionIds);
+    
+  if (error) {
+    console.error('Error fetching training sessions:', error);
+    throw new Error('Failed to export training data');
+  }
   
-  // Create a blob with the data
-  const blob = new Blob([jsonData], { type: 'application/json' });
+  // Convert to a downloadable format
+  const exportData = {
+    sessions: data,
+    exported_at: new Date().toISOString(),
+    version: '1.0'
+  };
   
-  // Create a URL for the blob
-  return URL.createObjectURL(blob);
-};
-
-/**
- * Import training data from a JSON file
- */
-export const importTrainingData = async (file: File): Promise<TrainingExample[]> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    
-    reader.onload = (event) => {
-      try {
-        if (!event.target || !event.target.result) {
-          reject(new Error('Error reading file'));
-          return;
-        }
-        
-        const jsonData = JSON.parse(event.target.result as string);
-        
-        // Validate the imported data
-        if (!Array.isArray(jsonData)) {
-          reject(new Error('Invalid format: expected an array'));
-          return;
-        }
-        
-        const examples: TrainingExample[] = [];
-        
-        for (const item of jsonData) {
-          if (!item.sensorData || !item.label || !Array.isArray(item.sensorData)) {
-            console.warn('Skipping invalid entry:', item);
-            continue;
-          }
-          
-          // Ensure label is a valid ActivityType
-          const label = item.label as ActivityType;
-          if (!['pass', 'shot', 'dribble', 'touch', 'no_possession'].includes(label)) {
-            console.warn(`Skipping entry with invalid label: ${label}`);
-            continue;
-          }
-          
-          examples.push({
-            sensorData: item.sensorData,
-            label,
-            videoTimestamp: item.videoTimestamp || 0,
-            duration: item.duration
-          });
-        }
-        
-        resolve(examples);
-      } catch (error) {
-        reject(new Error(`Error parsing JSON: ${error}`));
-      }
-    };
-    
-    reader.onerror = () => {
-      reject(new Error('Error reading file'));
-    };
-    
-    reader.readAsText(file);
+  // Convert to JSON blob
+  const jsonBlob = new Blob([JSON.stringify(exportData, null, 2)], { 
+    type: 'application/json' 
   });
+  
+  return jsonBlob;
 };
 
-/**
- * Save training examples to Supabase
- */
-export const saveTrainingExamples = async (
-  examples: TrainingExample[],
-  sessionId: string
-): Promise<boolean> => {
+// Function to import training data from a JSON file
+export const importTrainingData = async (file: File): Promise<string[]> => {
   try {
-    // Update the ml_training_sessions table with a JSON field containing the training examples
-    const { error } = await supabase
-      .from('ml_training_sessions')
-      .update({
-        parameters: JSON.stringify(examples)
-      } as MLTrainingSession)
-      .eq('id', sessionId);
+    // Read the file
+    const text = await file.text();
+    const data = JSON.parse(text);
     
-    if (error) {
-      console.error('Error saving training examples:', error);
-      return false;
+    if (!data || !data.sessions || !Array.isArray(data.sessions)) {
+      throw new Error('Invalid training data format');
     }
     
-    return true;
-  } catch (error) {
-    console.error('Error saving training examples:', error);
-    return false;
-  }
-};
-
-/**
- * Load training examples from Supabase
- */
-export const loadTrainingExamples = async (sessionId?: string): Promise<TrainingExample[]> => {
-  try {
-    let query = supabase
-      .from('ml_training_sessions')
-      .select('*');
+    // Insert each session
+    const sessionIds: string[] = [];
     
-    if (sessionId) {
-      query = query.eq('id', sessionId);
-    } else {
-      // If no session ID provided, limit to recent sessions
-      query = query.order('created_at', { ascending: false }).limit(10);
-    }
-    
-    const { data, error } = await query;
-    
-    if (error) {
-      console.error('Error loading training examples:', error);
-      return [];
-    }
-    
-    if (!data || data.length === 0) {
-      return [];
-    }
-    
-    // Combine examples from all sessions
-    const allExamples: TrainingExample[] = [];
-    
-    for (const session of data as SessionData[]) {
-      if (session.parameters) {
-        try {
-          // Parse the parameters field which contains our examples
-          const sessionExamples = JSON.parse(session.parameters);
-          
-          if (Array.isArray(sessionExamples)) {
-            // Validate and convert to TrainingExample type
-            for (const example of sessionExamples) {
-              if (
-                example &&
-                example.sensorData &&
-                example.label &&
-                Array.isArray(example.sensorData)
-              ) {
-                allExamples.push({
-                  sensorData: example.sensorData,
-                  label: example.label as ActivityType,
-                  videoTimestamp: example.videoTimestamp || 0,
-                  duration: example.duration
-                });
-              }
-            }
-          }
-        } catch (parseError) {
-          console.error(`Error parsing examples from session ${session.id}:`, parseError);
-        }
+    for (const session of data.sessions) {
+      // Handle any data format conversions if needed
+      // For example, make sure timestamps are in the right format
+      
+      // Insert the session
+      const { data: insertedSession, error } = await supabase
+        .from('ml_training_sessions')
+        .insert({
+          activity_type: session.activity_type,
+          device_id: session.device_id,
+          player_id: session.player_id,
+          start_time: session.start_time,
+          end_time: session.end_time,
+          duration: session.duration,
+          video_timestamp: session.video_timestamp,
+          parameters: session.parameters // Include parameters
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error importing session:', error);
+        continue;
       }
+      
+      sessionIds.push(insertedSession.id);
     }
     
-    return allExamples;
+    return sessionIds;
   } catch (error) {
-    console.error('Error loading training examples:', error);
-    return [];
+    console.error('Error importing training data:', error);
+    throw error;
   }
 };
 
-/**
- * Group training examples by activity type
- */
-export const groupExamplesByActivity = (
-  examples: TrainingExample[]
-): Record<ActivityType, TrainingExample[]> => {
-  const groups: Record<ActivityType, TrainingExample[]> = {
-    pass: [],
-    shot: [],
-    dribble: [],
-    touch: [],
-    no_possession: []
+// Function to convert SessionData to TrainingExample[]
+export const sessionsToExamples = async (sessions: SessionData[]): Promise<TrainingExample[]> => {
+  const examples: TrainingExample[] = [];
+  
+  for (const session of sessions) {
+    if (!session.parameters) {
+      console.warn(`Session ${session.id} has no parameters data`);
+      continue;
+    }
+    
+    try {
+      const sessionExamples = JSON.parse(session.parameters) as TrainingExample[];
+      
+      if (Array.isArray(sessionExamples)) {
+        examples.push(...sessionExamples.map(ex => ({
+          ...ex,
+          // Ensure the label is a valid ActivityType
+          label: (ex.label as ActivityType) || 'no_possession'
+        })));
+      }
+    } catch (error) {
+      console.error(`Error parsing examples from session ${session.id}:`, error);
+    }
+  }
+  
+  return examples;
+};
+
+// Function to clean up old training data
+export const cleanupOldTrainingSessions = async (olderThanDays: number = 30): Promise<number> => {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+  
+  const { data, error } = await supabase
+    .from('ml_training_sessions')
+    .delete()
+    .lt('created_at', cutoffDate.toISOString())
+    .select('id');
+  
+  if (error) {
+    console.error('Error cleaning up old sessions:', error);
+    return 0;
+  }
+  
+  return data?.length || 0;
+};
+
+// Function to aggregate training data by activity type
+export const aggregateTrainingData = (examples: TrainingExample[]): Record<ActivityType, number> => {
+  const result = {
+    'pass': 0,
+    'shot': 0,
+    'dribble': 0,
+    'touch': 0,
+    'no_possession': 0
   };
   
-  for (const example of examples) {
-    groups[example.label].push(example);
-  }
+  examples.forEach(ex => {
+    if (ex.label in result) {
+      result[ex.label]++;
+    }
+  });
   
-  return groups;
-};
-
-/**
- * Count examples by activity type
- */
-export const countExamplesByActivity = (
-  examples: TrainingExample[]
-): Record<ActivityType, number> => {
-  const counts: Record<ActivityType, number> = {
-    pass: 0,
-    shot: 0,
-    dribble: 0,
-    touch: 0,
-    no_possession: 0
-  };
-  
-  for (const example of examples) {
-    counts[example.label]++;
-  }
-  
-  return counts;
-};
-
-/**
- * Calculate total duration of training examples
- */
-export const calculateTotalDuration = (examples: TrainingExample[]): number => {
-  return examples.reduce((total, example) => total + (example.duration || 0), 0);
+  return result;
 };

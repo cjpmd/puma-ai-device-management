@@ -76,7 +76,7 @@ const TrainingTab = ({ trainingData, onStartTraining }: TrainingTabProps) => {
       </div>
       
       {!hasEnoughData && !isTraining && (
-        <Alert>
+        <Alert variant="default">
           <InfoIcon className="h-4 w-4" />
           <AlertDescription>
             For best results, collect at least {recommendedMin} examples for each activity type.

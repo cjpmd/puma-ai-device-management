@@ -1,3 +1,4 @@
+
 import * as tf from '@tensorflow/tfjs';
 import { supabase } from '@/integrations/supabase/client';
 import { ModelVersion, WeightsManifestEntry } from './types';
@@ -72,7 +73,12 @@ export const loadModelById = async (modelId: string): Promise<tf.Sequential> => 
       throw new Error('Model not found');
     }
     
-    return loadModelFromParameters(data.parameters as string);
+    // Convert parameters to string if it's not already a string
+    const parametersStr = typeof data.parameters === 'string' 
+      ? data.parameters 
+      : JSON.stringify(data.parameters);
+    
+    return loadModelFromParameters(parametersStr);
   } catch (error) {
     console.error('Error loading model:', error);
     throw error;

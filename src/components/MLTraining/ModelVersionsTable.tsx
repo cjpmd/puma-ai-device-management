@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { Download, Share2, Trash } from "lucide-react";
-import { ModelVersion } from "@/ml/modelVersioning";
+import { ModelVersion } from "@/ml/types";
 
 interface ModelVersionsTableProps {
   versions: ModelVersion[];

@@ -1,3 +1,4 @@
+
 // Modified imports to include new type definitions
 import * as tf from '@tensorflow/tfjs';
 import { supabase } from '@/integrations/supabase/client';
@@ -64,14 +65,14 @@ export const createTrainingSession = async (
     const { data, error } = await supabase
       .from('ml_training_sessions')
       .insert({
-        activity_type: activityType,
+        activity_type: activityType, // Ensure this is always provided
         device_id: deviceId,
         player_id: playerId,
         start_time: new Date().toISOString(),
         end_time: new Date().toISOString(),
         duration: examples.reduce((sum, ex) => sum + (ex.duration || 0), 0),
         parameters: JSON.stringify(examples)
-      } as MLTrainingSession)
+      })
       .select()
       .single();
     
@@ -154,7 +155,7 @@ export const updateTrainingSession = async (
       .from('ml_training_sessions')
       .update({
         parameters: JSON.stringify(examples)
-      } as MLTrainingSession)
+      })
       .eq('id', sessionId);
     
     if (error) {

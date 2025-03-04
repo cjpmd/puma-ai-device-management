@@ -4,7 +4,7 @@ import * as tf from '@tensorflow/tfjs';
 
 export interface MLTrainingSession {
   id?: string;
-  activity_type?: string;
+  activity_type: string; // Make this required to match Supabase requirements
   created_at?: string;
   updated_at?: string;
   device_id?: number;
