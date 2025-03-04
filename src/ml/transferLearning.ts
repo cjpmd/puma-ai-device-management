@@ -1,185 +1,192 @@
 
 import * as tf from '@tensorflow/tfjs';
-import { TrainingExample } from './activityRecognition';
+import { TrainingExample, ActivityType } from './activityRecognition';
+import { saveModelVersion } from './modelVersioning';
+
+interface TransferLearningOptions {
+  baseModelPath: string;
+  targetClasses: ActivityType[];
+  learningRate?: number;
+  epochs?: number;
+  batchSize?: number;
+  fineTuningLayers?: number;
+}
 
 /**
- * Freeze the base layers of a model for transfer learning
+ * Create a model for transfer learning from a pretrained base model
  */
-export const freezeBaseLayers = (model: tf.Sequential): tf.Sequential => {
-  // Freeze all layers except the last one (output layer)
-  for (let i = 0; i < model.layers.length - 1; i++) {
-    model.layers[i].trainable = false;
-  }
+export const createTransferModel = async (
+  options: TransferLearningOptions
+): Promise<tf.Sequential> => {
+  const {
+    baseModelPath,
+    targetClasses,
+    learningRate = 0.0001,
+    fineTuningLayers = 2
+  } = options;
   
-  return model;
-};
-
-/**
- * Unfreeze all layers in a model
- */
-export const unfreezeAllLayers = (model: tf.Sequential): tf.Sequential => {
-  for (let i = 0; i < model.layers.length; i++) {
-    model.layers[i].trainable = true;
-  }
+  // Load the base model
+  const baseModel = await tf.loadLayersModel(baseModelPath);
   
-  return model;
-};
-
-/**
- * Initialize a new model with weights from a pre-trained model
- * except for the output layer
- */
-export const initializeFromPretrainedModel = (
-  pretrainedModel: tf.Sequential,
-  numOutputClasses: number
-): tf.Sequential => {
-  // Create a new model with the same architecture
-  const newModel = tf.sequential();
-  
-  // Copy all layers except the output layer
-  for (let i = 0; i < pretrainedModel.layers.length - 1; i++) {
-    newModel.add(pretrainedModel.layers[i].clone());
-  }
-  
-  // Add a new output layer
-  newModel.add(tf.layers.dense({
-    units: numOutputClasses,
-    activation: 'softmax'
-  }));
-  
-  return newModel;
-};
-
-/**
- * Perform transfer learning with a pre-trained model
- */
-export const performTransferLearning = async (
-  pretrainedModel: tf.Sequential,
-  trainingData: TrainingExample[],
-  validationData: TrainingExample[],
-  numOutputClasses: number = 5,
-  fineTuningEpochs: number = 10,
-  fineTuningLearningRate: number = 0.0001,
-  onEpochEnd?: (epoch: number, logs: tf.Logs) => void
-): Promise<{
-  model: tf.Sequential;
-  history: {
-    accuracy: number[];
-    loss: number[];
-    valAccuracy: number[];
-    valLoss: number[];
-  }
-}> => {
-  // Clone the pre-trained model
+  // Create a new sequential model for transfer learning
   const model = tf.sequential();
   
-  // Copy all layers except the output layer
-  for (let i = 0; i < pretrainedModel.layers.length - 1; i++) {
-    model.add(pretrainedModel.layers[i].clone());
+  // Copy layers from the base model excluding the last few layers
+  const layersToKeep = baseModel.layers.length - fineTuningLayers;
+  
+  for (let i = 0; i < layersToKeep; i++) {
+    const layer = baseModel.layers[i];
+    // For each layer, create a new layer with the same configuration
+    // We cannot use clone() directly as it may not be available
+    
+    if (i === 0) {
+      // For the first layer, we need to specify the input shape
+      model.add(tf.layers.inputLayer({
+        inputShape: layer.inputShape.slice(1) // Remove batch dimension
+      }));
+    }
+    
+    if (layer.getClassName() === 'Dense') {
+      model.add(tf.layers.dense({
+        units: (layer.outputShape as number[])[1],
+        activation: layer.getConfig().activation,
+        trainable: false
+      }));
+    } else if (layer.getClassName() === 'LSTM') {
+      model.add(tf.layers.lstm({
+        units: (layer.outputShape as number[])[layer.getConfig().return_sequences ? 2 : 1],
+        returnSequences: layer.getConfig().return_sequences,
+        activation: layer.getConfig().activation,
+        trainable: false
+      }));
+    } else if (layer.getClassName() === 'Dropout') {
+      model.add(tf.layers.dropout({
+        rate: layer.getConfig().rate
+      }));
+    }
   }
   
-  // Add a new output layer
+  // Add new trainable layers for task-specific adaptation
+  model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
+  model.add(tf.layers.dropout({ rate: 0.3 }));
+  
+  // Add output layer with the target classes
   model.add(tf.layers.dense({
-    units: numOutputClasses,
+    units: targetClasses.length,
     activation: 'softmax'
   }));
-  
-  // Freeze base layers for initial training
-  freezeBaseLayers(model);
   
   // Compile the model
   model.compile({
-    optimizer: tf.train.adam(fineTuningLearningRate),
+    optimizer: tf.train.adam(learningRate),
     loss: 'categoricalCrossentropy',
     metrics: ['accuracy']
   });
   
-  // Prepare training data
-  const activities = ['pass', 'shot', 'dribble', 'touch', 'no_possession'];
+  return model;
+};
+
+/**
+ * Fine-tune a pretrained model with transfer learning
+ */
+export const fineTuneModel = async (
+  baseModel: tf.Sequential,
+  examples: TrainingExample[],
+  options: {
+    targetClasses: ActivityType[];
+    learningRate?: number;
+    epochs?: number;
+    batchSize?: number;
+    fineTuningLayers?: number;
+    validationSplit?: number;
+  }
+): Promise<tf.History> => {
+  const {
+    targetClasses,
+    learningRate = 0.0001,
+    epochs = 20,
+    batchSize = 32,
+    fineTuningLayers = 2,
+    validationSplit = 0.2
+  } = options;
   
-  const trainLabels = trainingData.map(example => {
-    const index = activities.indexOf(example.label);
-    const oneHot = new Array(numOutputClasses).fill(0);
-    oneHot[index] = 1;
-    return oneHot;
-  });
+  // Create a new model for fine-tuning
+  const model = tf.sequential();
   
-  const valLabels = validationData.map(example => {
-    const index = activities.indexOf(example.label);
-    const oneHot = new Array(numOutputClasses).fill(0);
-    oneHot[index] = 1;
-    return oneHot;
-  });
+  // Copy the layers from the base model
+  const layersToUnfreeze = baseModel.layers.length - fineTuningLayers;
   
-  const xsTrain = tf.tensor3d(trainingData.map(ex => ex.sensorData));
-  const ysTrain = tf.tensor2d(trainLabels);
-  
-  const xsVal = tf.tensor3d(validationData.map(ex => ex.sensorData));
-  const ysVal = tf.tensor2d(valLabels);
-  
-  // Training history
-  const history = {
-    accuracy: [] as number[],
-    loss: [] as number[],
-    valAccuracy: [] as number[],
-    valLoss: [] as number[]
-  };
-  
-  // First phase: train only the top layer
-  await model.fit(xsTrain, ysTrain, {
-    epochs: fineTuningEpochs,
-    batchSize: 32,
-    validationData: [xsVal, ysVal],
-    callbacks: {
-      onEpochEnd: (epoch, logs) => {
-        if (logs) {
-          history.accuracy.push(logs.acc);
-          history.loss.push(logs.loss);
-          history.valAccuracy.push(logs.val_acc);
-          history.valLoss.push(logs.val_loss);
-          
-          if (onEpochEnd) {
-            onEpochEnd(epoch, logs);
-          }
-        }
-      }
+  for (let i = 0; i < baseModel.layers.length; i++) {
+    const layer = baseModel.layers[i];
+    const isTrainable = i >= layersToUnfreeze;
+    
+    // Create a new layer with the same configuration
+    if (i === 0) {
+      // For the first layer, we need to specify the input shape
+      model.add(tf.layers.inputLayer({
+        inputShape: layer.inputShape.slice(1) // Remove batch dimension
+      }));
     }
-  });
+    
+    if (layer.getClassName() === 'Dense') {
+      model.add(tf.layers.dense({
+        units: (layer.outputShape as number[])[1],
+        activation: layer.getConfig().activation,
+        trainable: isTrainable
+      }));
+    } else if (layer.getClassName() === 'LSTM') {
+      model.add(tf.layers.lstm({
+        units: (layer.outputShape as number[])[layer.getConfig().return_sequences ? 2 : 1],
+        returnSequences: layer.getConfig().return_sequences,
+        activation: layer.getConfig().activation,
+        trainable: isTrainable
+      }));
+    } else if (layer.getClassName() === 'Dropout') {
+      model.add(tf.layers.dropout({
+        rate: layer.getConfig().rate
+      }));
+    }
+  }
   
-  // Second phase: fine-tune all layers
-  unfreezeAllLayers(model);
-  
+  // Compile the model
   model.compile({
-    optimizer: tf.train.adam(fineTuningLearningRate / 10),
+    optimizer: tf.train.adam(learningRate),
     loss: 'categoricalCrossentropy',
     metrics: ['accuracy']
   });
   
-  await model.fit(xsTrain, ysTrain, {
-    epochs: fineTuningEpochs,
-    batchSize: 32,
-    validationData: [xsVal, ysVal],
+  // Prepare the training data
+  const xs = tf.tensor3d(examples.map(ex => ex.sensorData));
+  
+  // Convert labels to one-hot encoding
+  const oneHotLabels = examples.map(example => {
+    const index = targetClasses.indexOf(example.label);
+    const oneHot = new Array(targetClasses.length).fill(0);
+    oneHot[index] = 1;
+    return oneHot;
+  });
+  
+  const ys = tf.tensor2d(oneHotLabels);
+  
+  // Train the model
+  const history = await model.fit(xs, ys, {
+    epochs,
+    batchSize,
+    validationSplit,
     callbacks: {
       onEpochEnd: (epoch, logs) => {
-        if (logs) {
-          history.accuracy.push(logs.acc);
-          history.loss.push(logs.loss);
-          history.valAccuracy.push(logs.val_acc);
-          history.valLoss.push(logs.val_loss);
-          
-          if (onEpochEnd) {
-            onEpochEnd(epoch + fineTuningEpochs, logs);
-          }
-        }
+        console.log(`Epoch ${epoch + 1}: loss = ${logs?.loss.toFixed(4)}, accuracy = ${logs?.acc.toFixed(4)}`);
       }
     }
   });
   
-  // Clean up tensors
-  xsTrain.dispose();
-  ysTrain.dispose();
-  xsVal.dispose();
-  ysVal.dispose();
+  // Save the fine-tuned model
+  const accuracy = history.history.acc[history.history.acc.length - 1];
+  await saveModelVersion(model, `fine-tuned-v${Date.now()}`, accuracy);
   
-  return { model, history };
+  // Cleanup tensors
+  xs.dispose();
+  ys.dispose();
+  
+  return history;
 };

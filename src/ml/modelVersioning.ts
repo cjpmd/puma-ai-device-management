@@ -1,55 +1,120 @@
 
 import * as tf from '@tensorflow/tfjs';
 import { supabase } from '@/integrations/supabase/client';
-import { TrainingExample } from './activityRecognition';
 
 export interface ModelVersion {
   id: string;
   version: string;
   accuracy: number;
-  trainingDate: string;
-  parameters?: any;
+  parameters?: tf.io.WeightsManifestEntry[];
+  created_at: string;
+  updated_at: string;
 }
 
 /**
- * Save a trained model to Supabase
+ * Serialize model weights to a format that can be stored
  */
-export const saveModel = async (
+export const serializeModel = async (model: tf.Sequential): Promise<any> => {
+  // Get weights as tensors
+  const weights = model.getWeights();
+  const serializedWeights = await Promise.all(
+    weights.map(async (w) => {
+      const tensorData = await w.data();
+      // Use type assertion to handle missing 'name' property
+      const layerName = (w as any).name || 'unnamed';
+      return {
+        name: layerName,
+        data: Array.from(tensorData),
+        shape: w.shape
+      };
+    })
+  );
+  
+  return serializedWeights;
+};
+
+/**
+ * Deserialize model weights from stored format
+ */
+export const deserializeModel = async (
+  architecture: any,
+  serializedWeights: any[]
+): Promise<tf.Sequential> => {
+  // Create model from architecture
+  const model = tf.sequential();
+  
+  // If we have a full architecture definition
+  if (architecture && architecture.config && architecture.config.layers) {
+    // Recreation using tf.sequential()
+    for (const layer of architecture.config.layers) {
+      if (layer.config) {
+        const layerConfig = {
+          units: layer.config.units,
+          activation: layer.config.activation,
+          inputShape: layer.config.batch_input_shape ? 
+            layer.config.batch_input_shape.slice(1) : undefined
+        };
+        
+        if (layer.class_name === 'Dense') {
+          model.add(tf.layers.dense(layerConfig));
+        } else if (layer.class_name === 'LSTM') {
+          model.add(tf.layers.lstm({
+            ...layerConfig,
+            returnSequences: layer.config.return_sequences
+          }));
+        } else if (layer.class_name === 'Dropout') {
+          model.add(tf.layers.dropout({
+            rate: layer.config.rate
+          }));
+        }
+      }
+    }
+  }
+  
+  // Set the weights
+  const weights = serializedWeights.map((w) => {
+    return tf.tensor(w.data, w.shape);
+  });
+  
+  model.setWeights(weights);
+  
+  // Compile with sensible defaults if not specified
+  model.compile({
+    optimizer: 'adam',
+    loss: 'categoricalCrossentropy',
+    metrics: ['accuracy']
+  });
+  
+  return model;
+};
+
+/**
+ * Save model to Supabase
+ */
+export const saveModelVersion = async (
   model: tf.Sequential,
   version: string,
-  accuracy: number,
-  trainingExamples: number
+  accuracy: number
 ): Promise<string | null> => {
   try {
-    // Serialize model weights
-    const weights = await Promise.all(
-      model.getWeights().map(async (w) => {
-        return {
-          name: w.name,
-          data: Array.from(await w.data()),
-          shape: w.shape
-        };
-      })
-    );
+    const serializedWeights = await serializeModel(model);
     
-    // Save model to Supabase
     const { data, error } = await supabase
       .from('ml_models')
       .insert({
-        version: version,
-        accuracy: accuracy,
-        parameters: JSON.stringify(weights),
+        version,
+        accuracy,
+        parameters: JSON.stringify(serializedWeights),
         training_date: new Date().toISOString()
       })
-      .select('id')
-      .single();
+      .select();
     
-    if (error) {
+    if (error || !data || data.length === 0) {
       console.error('Error saving model:', error);
       return null;
     }
     
-    return data.id;
+    return data[0].id;
   } catch (error) {
     console.error('Error serializing model:', error);
     return null;
@@ -57,14 +122,15 @@ export const saveModel = async (
 };
 
 /**
- * Load a model from Supabase by ID
+ * Load model from Supabase
  */
-export const loadModel = async (modelId: string): Promise<tf.Sequential | null> => {
+export const loadModelVersion = async (
+  modelId: string
+): Promise<tf.Sequential | null> => {
   try {
-    // Fetch model data from Supabase
     const { data, error } = await supabase
       .from('ml_models')
-      .select('parameters')
+      .select('*')
       .eq('id', modelId)
       .single();
     
@@ -73,149 +139,78 @@ export const loadModel = async (modelId: string): Promise<tf.Sequential | null> 
       return null;
     }
     
-    const weights = JSON.parse(data.parameters);
+    // Parse parameters JSON
+    let parameters;
+    try {
+      parameters = JSON.parse(data.parameters as string);
+    } catch (e) {
+      console.error('Error parsing model parameters:', e);
+      return null;
+    }
     
-    // Create a new model with the same architecture
-    const model = tf.sequential();
+    // Create a default architecture if missing
+    const defaultArchitecture = {
+      config: {
+        layers: [
+          {
+            class_name: 'LSTM',
+            config: {
+              units: 64,
+              batch_input_shape: [null, null, 4],
+              activation: 'tanh',
+              return_sequences: true
+            }
+          },
+          {
+            class_name: 'Dropout',
+            config: {
+              rate: 0.2
+            }
+          },
+          {
+            class_name: 'LSTM',
+            config: {
+              units: 32,
+              return_sequences: false,
+              activation: 'tanh'
+            }
+          },
+          {
+            class_name: 'Dense',
+            config: {
+              units: 5,
+              activation: 'softmax'
+            }
+          }
+        ]
+      }
+    };
     
-    model.add(tf.layers.lstm({
-      units: 64,
-      inputShape: [null, 4],
-      returnSequences: true
-    }));
-    
-    model.add(tf.layers.dropout({
-      rate: 0.2
-    }));
-    
-    model.add(tf.layers.lstm({
-      units: 32,
-      returnSequences: false
-    }));
-    
-    model.add(tf.layers.dense({
-      units: 5,
-      activation: 'softmax'
-    }));
-    
-    // Compile the model
-    model.compile({
-      optimizer: tf.train.adam(0.001),
-      loss: 'categoricalCrossentropy',
-      metrics: ['accuracy']
-    });
-    
-    // Load weights into the model
-    const tensors = weights.map((w: any) => 
-      tf.tensor(w.data, w.shape, 'float32')
-    );
-    
-    model.setWeights(tensors);
-    
-    return model;
+    return await deserializeModel(defaultArchitecture, parameters);
   } catch (error) {
-    console.error('Error loading model:', error);
+    console.error('Error deserializing model:', error);
     return null;
   }
 };
 
 /**
- * Get all saved model versions
+ * Get all model versions
  */
-export const getModelVersions = async (): Promise<ModelVersion[]> => {
-  const { data, error } = await supabase
-    .from('ml_models')
-    .select('id, version, accuracy, training_date')
-    .order('training_date', { ascending: false });
-  
-  if (error) {
+export const getAllModelVersions = async (): Promise<ModelVersion[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('ml_models')
+      .select('*')
+      .order('training_date', { ascending: false });
+    
+    if (error || !data) {
+      console.error('Error fetching model versions:', error);
+      return [];
+    }
+    
+    return data as ModelVersion[];
+  } catch (error) {
     console.error('Error fetching model versions:', error);
     return [];
   }
-  
-  return data.map(m => ({
-    id: m.id,
-    version: m.version,
-    accuracy: m.accuracy,
-    trainingDate: m.training_date
-  }));
-};
-
-/**
- * Compare two models' performance on a test dataset
- */
-export const compareModels = async (
-  modelA: tf.Sequential,
-  modelB: tf.Sequential,
-  testData: TrainingExample[]
-): Promise<{
-  modelAAccuracy: number;
-  modelBAccuracy: number;
-  comparisonMetrics: Record<string, any>;
-}> => {
-  // Convert test data to tensors
-  const activities = ['pass', 'shot', 'dribble', 'touch', 'no_possession'];
-  const oneHotLabels = testData.map(example => {
-    const index = activities.indexOf(example.label);
-    const oneHot = new Array(activities.length).fill(0);
-    oneHot[index] = 1;
-    return oneHot;
-  });
-  
-  const xs = tf.tensor3d(testData.map(ex => ex.sensorData));
-  const ys = tf.tensor2d(oneHotLabels);
-  
-  // Evaluate both models
-  const evalA = await modelA.evaluate(xs, ys) as tf.Tensor[];
-  const evalB = await modelB.evaluate(xs, ys) as tf.Tensor[];
-  
-  const modelAAccuracy = (await evalA[1].data())[0];
-  const modelBAccuracy = (await evalB[1].data())[0];
-  
-  // Calculate predictions for confusion matrix
-  const predictionsA = modelA.predict(xs) as tf.Tensor;
-  const predictionsB = modelB.predict(xs) as tf.Tensor;
-  
-  const predA = await predictionsA.argMax(1).array() as number[];
-  const predB = await predictionsB.argMax(1).array() as number[];
-  const actual = await ys.argMax(1).array() as number[];
-  
-  // Calculate confusion matrices
-  const confusionMatrixA = calculateConfusionMatrix(actual, predA, activities.length);
-  const confusionMatrixB = calculateConfusionMatrix(actual, predB, activities.length);
-  
-  // Clean up tensors
-  xs.dispose();
-  ys.dispose();
-  predictionsA.dispose();
-  predictionsB.dispose();
-  evalA.forEach(t => t.dispose());
-  evalB.forEach(t => t.dispose());
-  
-  return {
-    modelAAccuracy,
-    modelBAccuracy,
-    comparisonMetrics: {
-      confusionMatrixA,
-      confusionMatrixB,
-      activities
-    }
-  };
-};
-
-/**
- * Calculate confusion matrix from predictions and actual values
- */
-const calculateConfusionMatrix = (
-  actual: number[], 
-  predicted: number[], 
-  numClasses: number
-): number[][] => {
-  const matrix = Array(numClasses).fill(0).map(() => Array(numClasses).fill(0));
-  
-  for (let i = 0; i < actual.length; i++) {
-    matrix[actual[i]][predicted[i]]++;
-  }
-  
-  return matrix;
 };

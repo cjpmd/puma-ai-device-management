@@ -1,5 +1,5 @@
 
-import { SensorData, TrainingExample, convertSensorLoggerData, validateSensorLoggerData } from './activityRecognition';
+import { SensorData, TrainingExample, ActivityType, convertSensorLoggerData, validateSensorLoggerData } from './activityRecognition';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface BatchProcessingResult {
@@ -178,18 +178,17 @@ export const processVideoBatch = async (
           date: new Date().toISOString().split('T')[0],
           training_session_id: sessionId
         })
-        .select('id')
-        .single();
+        .select();
       
-      if (videoError) {
+      if (videoError || !videoData || videoData.length === 0) {
         console.error(`Error storing video ${videoFile.name}:`, videoError);
-        result.errors.push(`Error in ${videoFile.name}: ${videoError.message}`);
+        result.errors.push(`Error in ${videoFile.name}: ${videoError?.message || 'Unknown error'}`);
         result.errorCount++;
         continue;
       }
       
       // Process annotations
-      const annotations = extractAnnotationsFromViaFormat(annotationData, videoData.id);
+      const annotations = extractAnnotationsFromViaFormat(annotationData, videoData[0].id);
       
       if (annotations.length > 0) {
         const { error: annotationError } = await supabase
@@ -241,11 +240,11 @@ const extractAnnotationsFromViaFormat = (
                 video_id: videoId,
                 timestamp: Math.floor(segment.z[0] * 1000), // Convert to milliseconds
                 annotation_type: activityValue,
-                data: {
+                data: JSON.stringify({
                   startTime: segment.z[0],
                   endTime: segment.z[1],
                   duration: segment.z[1] - segment.z[0]
-                }
+                })
               });
             }
           }
@@ -272,10 +271,10 @@ export const generateTrainingExamplesFromBatch = async (
     // Fetch all annotations for the session
     const { data: videos, error: videoError } = await supabase
       .from('video_analysis')
-      .select('id, training_session_id')
+      .select('id')
       .eq('training_session_id', sessionId);
     
-    if (videoError) {
+    if (videoError || !videos) {
       console.error('Error fetching videos:', videoError);
       return [];
     }
@@ -287,7 +286,7 @@ export const generateTrainingExamplesFromBatch = async (
       .select('*')
       .in('video_id', videoIds);
     
-    if (annotationError) {
+    if (annotationError || !annotations) {
       console.error('Error fetching annotations:', annotationError);
       return [];
     }
@@ -309,7 +308,10 @@ export const generateTrainingExamplesFromBatch = async (
       
       // Get sensor data for this time range
       const startTime = annotation.timestamp;
-      const endTime = startTime + (annotation.data.duration * 1000);
+      // Parse data which is stored as a string
+      const annotationData = typeof annotation.data === 'string' ? 
+        JSON.parse(annotation.data) : annotation.data;
+      const endTime = startTime + (parseFloat(annotationData.duration) * 1000);
       
       const { data: sensorData, error: sensorError } = await supabase
         .from('sensor_recordings')
@@ -318,7 +320,7 @@ export const generateTrainingExamplesFromBatch = async (
         .gte('timestamp', startTime)
         .lte('timestamp', endTime);
       
-      if (sensorError) {
+      if (sensorError || !sensorData) {
         console.error('Error fetching sensor data:', sensorError);
         continue;
       }
@@ -335,11 +337,14 @@ export const generateTrainingExamplesFromBatch = async (
         
         const convertedData = convertSensorLoggerData(formattedSensorData);
         
+        // Need to type cast to make sure it's a valid ActivityType
+        const activityType = annotation.annotation_type as ActivityType;
+        
         trainingExamples.push({
           sensorData: convertedData,
-          label: annotation.annotation_type,
+          label: activityType,
           videoTimestamp: startTime,
-          duration: annotation.data.duration * 1000
+          duration: parseFloat(annotationData.duration) * 1000
         });
       }
     }

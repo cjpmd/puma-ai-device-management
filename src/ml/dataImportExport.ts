@@ -150,19 +150,18 @@ export const saveTrainingExamplesToSupabase = async (
       example_index: index
     }));
     
-    // Insert in batches of 100 to avoid payload size limitations
-    const batchSize = 100;
-    for (let i = 0; i < dbExamples.length; i += batchSize) {
-      const batch = dbExamples.slice(i, i + batchSize);
-      
-      const { error } = await supabase
-        .from('training_examples')
-        .insert(batch);
-      
-      if (error) {
-        console.error('Error saving batch:', error);
-        return false;
-      }
+    // Store the examples directly in ml_training_sessions
+    // Since there's no training_examples table, we need to store the data differently
+    const { error } = await supabase
+      .from('ml_training_sessions')
+      .update({
+        training_data: JSON.stringify(dbExamples)
+      })
+      .eq('id', sessionId);
+    
+    if (error) {
+      console.error('Error saving examples:', error);
+      return false;
     }
     
     return true;
@@ -180,28 +179,46 @@ export const loadTrainingExamplesFromSupabase = async (
 ): Promise<TrainingExample[]> => {
   try {
     let query = supabase
-      .from('training_examples')
-      .select('*')
-      .order('example_index');
+      .from('ml_training_sessions')
+      .select('id, training_data');
     
     if (sessionId) {
-      query = query.eq('training_session_id', sessionId);
+      query = query.eq('id', sessionId);
     }
     
     const { data, error } = await query;
     
-    if (error) {
+    if (error || !data) {
       console.error('Error loading examples:', error);
       return [];
     }
     
-    // Convert database format to TrainingExample format
-    return data.map(record => ({
-      sensorData: record.sensor_data,
-      label: record.label,
-      videoTimestamp: record.video_timestamp,
-      duration: record.duration
-    }));
+    // Collect all training examples from the sessions
+    const allExamples: TrainingExample[] = [];
+    
+    data.forEach(session => {
+      if (session.training_data) {
+        try {
+          const sessionExamples = JSON.parse(session.training_data);
+          if (Array.isArray(sessionExamples)) {
+            sessionExamples.forEach(example => {
+              if (example.sensor_data && example.label) {
+                allExamples.push({
+                  sensorData: example.sensor_data,
+                  label: example.label,
+                  videoTimestamp: example.video_timestamp,
+                  duration: example.duration
+                });
+              }
+            });
+          }
+        } catch (e) {
+          console.error('Error parsing training data for session:', session.id, e);
+        }
+      }
+    });
+    
+    return allExamples;
   } catch (error) {
     console.error('Error loading examples:', error);
     return [];
@@ -225,36 +242,33 @@ export const getTrainingSessions = async (): Promise<{
       .select('*')
       .order('start_time', { ascending: false });
     
-    if (error) {
+    if (error || !sessions) {
       console.error('Error loading sessions:', error);
       return [];
     }
     
-    // Get example counts for each session
-    const sessionIds = sessions.map(s => s.id);
-    const { data: exampleCounts, error: countError } = await supabase
-      .from('training_examples')
-      .select('training_session_id, count')
-      .in('training_session_id', sessionIds)
-      .group('training_session_id');
-    
-    if (countError) {
-      console.error('Error loading example counts:', countError);
-    }
-    
-    const countsMap = (exampleCounts || []).reduce((map, item) => {
-      map[item.training_session_id] = item.count;
-      return map;
-    }, {} as Record<string, number>);
-    
-    return sessions.map(s => ({
-      id: s.id,
-      activityType: s.activity_type,
-      startTime: s.start_time,
-      endTime: s.end_time,
-      duration: s.duration,
-      exampleCount: countsMap[s.id] || 0
-    }));
+    return sessions.map(s => {
+      let exampleCount = 0;
+      
+      // Count examples if training_data is available
+      if (s.training_data) {
+        try {
+          const trainingData = JSON.parse(s.training_data);
+          exampleCount = Array.isArray(trainingData) ? trainingData.length : 0;
+        } catch (e) {
+          console.error('Error parsing training data for session count:', s.id, e);
+        }
+      }
+      
+      return {
+        id: s.id,
+        activityType: s.activity_type,
+        startTime: s.start_time,
+        endTime: s.end_time,
+        duration: s.duration,
+        exampleCount
+      };
+    });
   } catch (error) {
     console.error('Error loading sessions:', error);
     return [];
