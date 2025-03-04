@@ -41,12 +41,12 @@ export const createTransferModel = async (
     if (i === 0) {
       // For the first layer, we need to specify the input shape
       // Get input shape from the layer input spec if available
-      const inputShape = layer.inputSpec ? 
-                         (layer.inputSpec[0] as any).shape?.slice(1) : 
-                         [null, 4]; // Default shape if not available
+      const inputSpec = layer.inputSpec ? 
+                    (layer.inputSpec[0] as any).shape?.slice(1) : 
+                    [null, 4]; // Default shape if not available
       
       model.add(tf.layers.inputLayer({
-        inputShape
+        inputShape: inputSpec
       }));
     }
     
@@ -55,14 +55,14 @@ export const createTransferModel = async (
     if (layer.getClassName() === 'Dense') {
       model.add(tf.layers.dense({
         units: config.units as number,
-        activation: config.activation as tf.Activation,
+        activation: config.activation as string,
         trainable: false
       }));
     } else if (layer.getClassName() === 'LSTM') {
       model.add(tf.layers.lstm({
         units: config.units as number,
         returnSequences: Boolean(config.return_sequences),
-        activation: config.activation as tf.Activation,
+        activation: config.activation as string,
         trainable: false
       }));
     } else if (layer.getClassName() === 'Dropout') {
@@ -129,12 +129,12 @@ export const fineTuneModel = async (
     // Create a new layer with the same configuration
     if (i === 0) {
       // For the first layer, we need to specify the input shape
-      const inputShape = layer.inputSpec ? 
-                         (layer.inputSpec[0] as any).shape?.slice(1) : 
-                         [null, 4]; // Default shape if not available
+      const inputSpec = layer.inputSpec ? 
+                    (layer.inputSpec[0] as any).shape?.slice(1) : 
+                    [null, 4]; // Default shape if not available
       
       model.add(tf.layers.inputLayer({
-        inputShape
+        inputShape: inputSpec
       }));
     }
     
@@ -143,14 +143,14 @@ export const fineTuneModel = async (
     if (layer.getClassName() === 'Dense') {
       model.add(tf.layers.dense({
         units: config.units as number,
-        activation: config.activation as tf.Activation,
+        activation: config.activation as string,
         trainable: isTrainable
       }));
     } else if (layer.getClassName() === 'LSTM') {
       model.add(tf.layers.lstm({
         units: config.units as number,
         returnSequences: Boolean(config.return_sequences),
-        activation: config.activation as tf.Activation,
+        activation: config.activation as string,
         trainable: isTrainable
       }));
     } else if (layer.getClassName() === 'Dropout') {
@@ -197,7 +197,7 @@ export const fineTuneModel = async (
   // Save the fine-tuned model
   if (history && history.history && history.history.acc && history.history.acc.length > 0) {
     const accuracy = history.history.acc[history.history.acc.length - 1];
-    await saveModelVersion(model, `fine-tuned-v${Date.now()}`, accuracy);
+    await saveModelVersion(model, `fine-tuned-v${Date.now()}`, accuracy as number);
   }
   
   // Cleanup tensors

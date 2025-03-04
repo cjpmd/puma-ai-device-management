@@ -2,199 +2,214 @@
 import * as tf from '@tensorflow/tfjs';
 import { supabase } from '@/integrations/supabase/client';
 
+// Define interfaces for model versioning
 export interface ModelVersion {
   id: string;
   version: string;
   accuracy: number;
-  parameters?: string; // Store as JSON string
+  model_file_path?: string;
+  parameters?: string; // Stored as JSON string in DB
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 /**
- * Serialize model weights to a format that can be stored
+ * Save model weights as JSON format
  */
-export const serializeModel = async (model: tf.Sequential): Promise<any> => {
-  // Get weights as tensors
+const serializeModelWeights = (model: tf.Sequential): string => {
+  const weightData: any[] = [];
   const weights = model.getWeights();
-  const serializedWeights = await Promise.all(
-    weights.map(async (w) => {
-      const tensorData = await w.data();
-      // Get layer name from tensor's description or use a default
-      const layerName = w.name || 'unnamed';
-      return {
-        name: layerName,
-        data: Array.from(tensorData),
-        shape: w.shape
-      };
-    })
-  );
   
-  return serializedWeights;
+  weights.forEach((tensor, idx) => {
+    // Access the tensor's values as a typed array
+    const values = tensor.dataSync();
+    const shape = tensor.shape;
+    
+    weightData.push({
+      weight_idx: idx,
+      shape: shape,
+      values: Array.from(values)
+    });
+  });
+  
+  return JSON.stringify(weightData);
 };
 
 /**
- * Deserialize model weights from stored format
+ * Load model weights from JSON format
  */
-export const deserializeModel = async (
-  architecture: any,
-  serializedWeights: any[]
+const deserializeModelWeights = async (
+  model: tf.Sequential,
+  serializedWeights: string
 ): Promise<tf.Sequential> => {
-  // Create model from architecture
-  const model = tf.sequential();
-  
-  // If we have a full architecture definition
-  if (architecture && architecture.config && architecture.config.layers) {
-    // Recreation using tf.sequential()
-    for (const layer of architecture.config.layers) {
-      if (layer.config) {
-        const layerConfig: any = {
-          units: layer.config.units,
-          activation: layer.config.activation,
-          inputShape: layer.config.batch_input_shape ? 
-            layer.config.batch_input_shape.slice(1) : undefined
-        };
-        
-        if (layer.class_name === 'Dense') {
-          model.add(tf.layers.dense(layerConfig));
-        } else if (layer.class_name === 'LSTM') {
-          model.add(tf.layers.lstm({
-            ...layerConfig,
-            returnSequences: layer.config.return_sequences === 'true' || layer.config.return_sequences === true
-          }));
-        } else if (layer.class_name === 'Dropout') {
-          model.add(tf.layers.dropout({
-            rate: Number(layer.config.rate)
-          }));
-        }
-      }
-    }
+  try {
+    const weightData = JSON.parse(serializedWeights);
+    
+    // Create tensors from the serialized weight data
+    const tensors = weightData.map((item: any) => {
+      return tf.tensor(item.values, item.shape);
+    });
+    
+    // Set the weights on the model
+    model.setWeights(tensors);
+    
+    return model;
+  } catch (error) {
+    console.error('Error deserializing model weights:', error);
+    throw error;
   }
-  
-  // Set the weights
-  const weights = serializedWeights.map((w) => {
-    return tf.tensor(w.data, w.shape);
-  });
-  
-  model.setWeights(weights);
-  
-  // Compile with sensible defaults if not specified
-  model.compile({
-    optimizer: 'adam',
-    loss: 'categoricalCrossentropy',
-    metrics: ['accuracy']
-  });
-  
-  return model;
 };
 
 /**
- * Save model to Supabase
+ * Save a trained model to Supabase
  */
 export const saveModelVersion = async (
   model: tf.Sequential,
   version: string,
   accuracy: number
-): Promise<string | null> => {
+): Promise<string> => {
   try {
-    const serializedWeights = await serializeModel(model);
+    // Serialize the model weights
+    const serializedWeights = serializeModelWeights(model);
     
+    // Save the model in Supabase
     const { data, error } = await supabase
       .from('ml_models')
       .insert({
         version,
         accuracy,
-        parameters: JSON.stringify(serializedWeights),
-        training_date: new Date().toISOString()
+        parameters: serializedWeights
       })
-      .select();
+      .select()
+      .single();
     
-    if (error || !data || data.length === 0) {
+    if (error) {
       console.error('Error saving model:', error);
-      return null;
+      throw error;
     }
     
-    return data[0].id;
+    console.log('Saved model version:', version, 'with ID:', data.id);
+    return data.id;
   } catch (error) {
-    console.error('Error serializing model:', error);
-    return null;
+    console.error('Error in saveModelVersion:', error);
+    throw error;
   }
 };
 
 /**
- * Load model from Supabase
+ * Load a model version from Supabase
  */
 export const loadModelVersion = async (
   modelId: string
-): Promise<tf.Sequential | null> => {
+): Promise<tf.Sequential> => {
   try {
+    // Get the model data from Supabase
     const { data, error } = await supabase
       .from('ml_models')
       .select('*')
       .eq('id', modelId)
       .single();
     
-    if (error || !data) {
+    if (error) {
       console.error('Error loading model:', error);
-      return null;
+      throw error;
     }
     
-    // Parse parameters JSON
-    let parameters;
-    try {
-      parameters = JSON.parse(data.parameters as string);
-    } catch (e) {
-      console.error('Error parsing model parameters:', e);
-      return null;
+    // Create a new model with the same architecture
+    const model = tf.sequential();
+    model.add(tf.layers.lstm({
+      units: 64,
+      inputShape: [null, 4],
+      returnSequences: true
+    }));
+    
+    model.add(tf.layers.dropout({
+      rate: 0.2
+    }));
+    
+    model.add(tf.layers.lstm({
+      units: 32,
+      returnSequences: false
+    }));
+    
+    model.add(tf.layers.dense({
+      units: 5,
+      activation: 'softmax'
+    }));
+    
+    model.compile({
+      optimizer: tf.train.adam(0.001),
+      loss: 'categoricalCrossentropy',
+      metrics: ['accuracy']
+    });
+    
+    // Load the weights if available
+    if (data.parameters) {
+      await deserializeModelWeights(model, data.parameters.toString());
     }
     
-    // Create a default architecture if missing
-    const defaultArchitecture = {
-      config: {
-        layers: [
-          {
-            class_name: 'LSTM',
-            config: {
-              units: 64,
-              batch_input_shape: [null, null, 4],
-              activation: 'tanh',
-              return_sequences: true
-            }
-          },
-          {
-            class_name: 'Dropout',
-            config: {
-              rate: 0.2
-            }
-          },
-          {
-            class_name: 'LSTM',
-            config: {
-              units: 32,
-              return_sequences: false,
-              activation: 'tanh'
-            }
-          },
-          {
-            class_name: 'Dense',
-            config: {
-              units: 5,
-              activation: 'softmax'
-            }
-          }
-        ]
-      }
-    };
-    
-    return await deserializeModel(defaultArchitecture, parameters);
+    return model;
   } catch (error) {
-    console.error('Error deserializing model:', error);
-    return null;
+    console.error('Error in loadModelVersion:', error);
+    throw error;
   }
 };
 
 /**
- * Get all model versions
+ * Compare two model versions by performance
+ */
+export const compareModelVersions = async (
+  modelId1: string,
+  modelId2: string
+): Promise<{
+  modelId1: string;
+  modelId2: string;
+  accuracy1: number;
+  accuracy2: number;
+  improvement: number;
+}> => {
+  try {
+    // Get the model data from Supabase
+    const { data: models, error } = await supabase
+      .from('ml_models')
+      .select('*')
+      .in('id', [modelId1, modelId2]);
+    
+    if (error) {
+      console.error('Error loading models:', error);
+      throw error;
+    }
+    
+    if (!models || models.length !== 2) {
+      throw new Error('Could not find the specified models');
+    }
+    
+    const model1 = models.find(m => m.id === modelId1);
+    const model2 = models.find(m => m.id === modelId2);
+    
+    if (!model1 || !model2) {
+      throw new Error('Could not find one of the specified models');
+    }
+    
+    const accuracy1 = model1.accuracy;
+    const accuracy2 = model2.accuracy;
+    const improvement = accuracy2 - accuracy1;
+    
+    return {
+      modelId1,
+      modelId2,
+      accuracy1,
+      accuracy2,
+      improvement
+    };
+  } catch (error) {
+    console.error('Error in compareModelVersions:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all available model versions
  */
 export const getAllModelVersions = async (): Promise<ModelVersion[]> => {
   try {
@@ -203,22 +218,37 @@ export const getAllModelVersions = async (): Promise<ModelVersion[]> => {
       .select('*')
       .order('created_at', { ascending: false });
     
-    if (error || !data) {
-      console.error('Error fetching model versions:', error);
-      return [];
+    if (error) {
+      console.error('Error loading models:', error);
+      throw error;
     }
     
-    // Convert data to ModelVersion type
-    return data.map(item => ({
-      id: item.id,
-      version: item.version,
-      accuracy: item.accuracy,
-      parameters: item.parameters as string,
-      created_at: item.created_at,
-      updated_at: item.updated_at
-    }));
+    // Convert to ModelVersion type
+    return (data || []) as ModelVersion[];
   } catch (error) {
-    console.error('Error fetching model versions:', error);
+    console.error('Error in getAllModelVersions:', error);
     return [];
+  }
+};
+
+/**
+ * Delete a model version
+ */
+export const deleteModelVersion = async (modelId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('ml_models')
+      .delete()
+      .eq('id', modelId);
+    
+    if (error) {
+      console.error('Error deleting model:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in deleteModelVersion:', error);
+    return false;
   }
 };

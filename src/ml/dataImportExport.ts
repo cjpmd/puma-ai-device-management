@@ -88,7 +88,7 @@ export const saveTrainingExamples = async (
     const { error } = await supabase
       .from('ml_training_sessions')
       .update({
-        // Convert examples to a JSON string and store in the parameters field
+        // Use parameters JSON field to store the training examples
         parameters: JSON.stringify(examples)
       })
       .eq('id', sessionId);

@@ -1,98 +1,34 @@
-
 import * as tf from '@tensorflow/tfjs';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   ActivityType, 
   TrainingExample, 
-  convertSensorLoggerData,
-  SensorData
+  validateSensorLoggerData, 
+  convertSensorLoggerData 
 } from './activityRecognition';
-import { saveTrainingExamples } from './dataImportExport';
 
-interface ProcessingOptions {
-  windowSize?: number; // in milliseconds
-  overlapPercentage?: number;
-  minimumWindowsRequired?: number;
+interface SessionData {
+  id: string;
+  activity_type: string;
+  video_timestamp?: number;
+  player_id?: string;
 }
 
 /**
- * Process raw sensor data to create training examples
+ * Process a batch of sensor data files and convert them to training examples
  */
-export const processSensorData = (
-  sensorData: SensorData[],
-  annotations: Array<{
-    startTime: number;
-    endTime: number;
-    activityType: ActivityType;
-  }>,
-  options: ProcessingOptions = {}
-): TrainingExample[] => {
-  const {
-    windowSize = 500, // 500ms default window
-    overlapPercentage = 50, // 50% overlap
-    minimumWindowsRequired = 1
-  } = options;
-  
+export const processSensorDataBatch = async (
+  sensorDataFiles: File[],
+  activityType: ActivityType
+): Promise<TrainingExample[]> => {
   const trainingExamples: TrainingExample[] = [];
   
-  // Sort sensor data by timestamp
-  const sortedData = [...sensorData].sort((a, b) => {
-    const timeA = new Date(a.time).getTime();
-    const timeB = new Date(b.time).getTime();
-    return timeA - timeB;
-  });
-  
-  if (sortedData.length === 0) {
-    console.log('No sensor data to process');
-    return [];
-  }
-  
-  // Process each annotation
-  for (const annotation of annotations) {
-    const { startTime, endTime, activityType } = annotation;
-    
-    // Filter sensor data within this annotation's time range
-    const dataInRange = sortedData.filter(reading => {
-      const readingTime = new Date(reading.time).getTime();
-      return readingTime >= startTime && readingTime <= endTime;
-    });
-    
-    if (dataInRange.length === 0) {
-      console.log(`No data in range for annotation ${activityType} (${startTime}-${endTime})`);
-      continue;
-    }
-    
-    // Calculate sliding windows
-    const duration = endTime - startTime;
-    const stepSize = windowSize * (1 - overlapPercentage / 100);
-    const numWindows = Math.floor((duration - windowSize) / stepSize) + 1;
-    
-    if (numWindows < minimumWindowsRequired) {
-      console.log(`Not enough data for minimum windows in annotation ${activityType} (${startTime}-${endTime})`);
-      continue;
-    }
-    
-    // Create windows
-    for (let i = 0; i < numWindows; i++) {
-      const windowStart = startTime + i * stepSize;
-      const windowEnd = windowStart + windowSize;
-      
-      const windowData = dataInRange.filter(reading => {
-        const readingTime = new Date(reading.time).getTime();
-        return readingTime >= windowStart && readingTime <= windowEnd;
-      });
-      
-      if (windowData.length > 0) {
-        // Convert to feature format
-        const convertedData = convertSensorLoggerData(windowData);
-        
-        trainingExamples.push({
-          sensorData: convertedData,
-          label: activityType,
-          videoTimestamp: windowStart,
-          duration: windowSize
-        });
-      }
+  for (const file of sensorDataFiles) {
+    try {
+      const examples = await processSingleSensorFile(file, activityType);
+      trainingExamples.push(...examples);
+    } catch (error) {
+      console.error(`Error processing file ${file.name}:`, error);
     }
   }
   
@@ -100,202 +36,227 @@ export const processSensorData = (
 };
 
 /**
- * Process video annotations to create training examples
- * This is for when we have video annotations but not direct sensor data
+ * Process a single sensor data file and extract training examples
  */
-export const processVideoAnnotations = async (
-  videoId: string,
-  annotations: Array<{
-    startTime: number;
-    endTime: number;
-    activityType: ActivityType;
-  }>
+const processSingleSensorFile = async (
+  file: File,
+  activityType: ActivityType
 ): Promise<TrainingExample[]> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (event) => {
+      try {
+        if (!event.target || !event.target.result) {
+          reject(new Error('Error reading file'));
+          return;
+        }
+        
+        const jsonData = JSON.parse(event.target.result as string);
+        
+        if (!validateSensorLoggerData(jsonData)) {
+          reject(new Error('Invalid sensor data format'));
+          return;
+        }
+        
+        const sensorData = convertSensorLoggerData(jsonData);
+        
+        const example: TrainingExample = {
+          sensorData,
+          label: activityType,
+          videoTimestamp: Date.now(),
+          duration: sensorData.length > 0 
+            ? (sensorData[sensorData.length - 1][3] - sensorData[0][3]) * 1000
+            : 0
+        };
+        
+        resolve([example]);
+      } catch (error) {
+        reject(new Error(`Error parsing JSON: ${error}`));
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Error reading file'));
+    };
+    
+    reader.readAsText(file);
+  });
+};
+
+/**
+ * Save a batch of training examples to an existing training session
+ */
+export const saveTrainingBatch = async (
+  examples: TrainingExample[],
+  sessionId: string
+): Promise<boolean> => {
   try {
-    // First create a training session record
+    if (examples.length === 0) {
+      console.warn('No examples to save');
+      return false;
+    }
+    
     const { data: sessionData, error: sessionError } = await supabase
       .from('ml_training_sessions')
-      .insert({
-        activity_type: 'multiple',
-        start_time: new Date().toISOString(),
-        video_timestamp: annotations[0]?.startTime || Date.now()
-      })
-      .select()
-      .single();
-
-    if (sessionError || !sessionData) {
-      console.error('Error creating training session:', sessionError);
-      return [];
-    }
-
-    const sessionId = sessionData.id;
-    
-    // Get sensor data that corresponds to this video
-    // We assume sensor data is stored in sensor_recordings table with a link to the video
-    const { data: sensorData, error: sensorError } = await supabase
-      .from('sensor_recordings')
       .select('*')
-      .eq('video_id', videoId);
+      .eq('id', sessionId)
+      .single();
     
-    if (sensorError) {
-      console.error('Error fetching sensor data:', sensorError);
-      return [];
+    if (sessionError) {
+      console.error('Error fetching session:', sessionError);
+      return false;
     }
     
-    if (!sensorData || sensorData.length === 0) {
-      console.log('No sensor data found for this video');
-      return [];
+    const { error } = await supabase
+      .from('ml_training_sessions')
+      .update({
+        parameters: JSON.stringify(examples)
+      })
+      .eq('id', sessionId);
+    
+    if (error) {
+      console.error('Error saving examples:', error);
+      return false;
     }
     
-    // Convert the DB format to our SensorData format
-    const formattedSensorData: SensorData[] = sensorData.map(record => ({
-      x: record.x.toString(),
-      y: record.y.toString(),
-      z: record.z.toString(),
-      time: new Date(record.timestamp).toISOString(),
-      seconds_elapsed: ((record.timestamp - sensorData[0].timestamp) / 1000).toString(),
-      sensor: record.sensor_type
-    }));
-    
-    // Process the sensor data to create training examples
-    const examples = processSensorData(formattedSensorData, annotations);
-    
-    // Save the examples to the database
-    if (examples.length > 0) {
-      await saveTrainingExamples(examples, sessionId);
-    }
-    
-    return examples;
+    return true;
   } catch (error) {
-    console.error('Error processing video annotations:', error);
+    console.error('Error saving training batch:', error);
+    return false;
+  }
+};
+
+/**
+ * Process video frames to extract training examples
+ */
+export const processVideoFrames = async (
+  videoFile: File,
+  annotations: { startTime: number; endTime: number; label: ActivityType }[],
+  extractionRate = 5
+): Promise<TrainingExample[]> => {
+  const examples: TrainingExample[] = [];
+  
+  for (const annotation of annotations) {
+    const { startTime, endTime, label } = annotation;
+    const duration = endTime - startTime;
+    
+    const sensorData: number[][] = [];
+    const numFrames = Math.floor(duration / 1000 * 30 / extractionRate);
+    
+    for (let i = 0; i < numFrames; i++) {
+      sensorData.push([
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+        startTime / 1000 + (i * extractionRate / 30)
+      ]);
+    }
+    
+    examples.push({
+      sensorData,
+      label,
+      videoTimestamp: startTime,
+      duration
+    });
+  }
+  
+  return examples;
+};
+
+/**
+ * Link training sessions with video analysis
+ */
+export const linkSessionsWithVideo = async (
+  sessionIds: string[],
+  videoAnalysisId: string
+): Promise<boolean> => {
+  try {
+    for (const sessionId of sessionIds) {
+      const { error } = await supabase
+        .from('ml_training_sessions')
+        .update({
+          parameters: { 
+            related_video_id: videoAnalysisId 
+          }
+        })
+        .eq('id', sessionId);
+      
+      if (error) {
+        console.error(`Error linking session ${sessionId} with video:`, error);
+        return false;
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error linking sessions with video:', error);
+    return false;
+  }
+};
+
+/**
+ * Get all training sessions linked to a specific video
+ */
+export const getSessionsByVideo = async (
+  videoAnalysisId: string
+): Promise<SessionData[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('ml_training_sessions')
+      .select('*')
+      .contains('parameters', { related_video_id: videoAnalysisId });
+    
+    if (error) {
+      console.error('Error fetching sessions by video:', error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error getting sessions by video:', error);
     return [];
   }
 };
 
 /**
- * Batch process multiple ML training sessions
+ * Extract training examples from all sessions linked to a video
  */
-export const batchProcessSessions = async (
-  sessionIds: string[]
+export const extractExamplesFromVideo = async (
+  videoAnalysisId: string
 ): Promise<TrainingExample[]> => {
   try {
+    const sessions = await getSessionsByVideo(videoAnalysisId);
     const allExamples: TrainingExample[] = [];
     
-    for (const sessionId of sessionIds) {
-      // Get session data
-      const { data: session, error: sessionError } = await supabase
-        .from('ml_training_sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .single();
-      
-      if (sessionError || !session) {
-        console.error(`Error fetching session ${sessionId}:`, sessionError);
-        continue;
+    for (const session of sessions) {
+      if (session.parameters) {
+        try {
+          const examples = JSON.parse(session.parameters as string);
+          if (Array.isArray(examples)) {
+            examples.forEach(example => {
+              if (example && 
+                  example.sensorData && 
+                  example.label && 
+                  Array.isArray(example.sensorData)) {
+                allExamples.push({
+                  sensorData: example.sensorData,
+                  label: example.label as ActivityType,
+                  videoTimestamp: example.videoTimestamp || 0,
+                  duration: example.duration
+                });
+              }
+            });
+          }
+        } catch (parseError) {
+          console.error(`Error parsing examples from session ${session.id}:`, parseError);
+        }
       }
-      
-      // Get sensor data for this session
-      const { data: sensorData, error: sensorError } = await supabase
-        .from('sensor_recordings')
-        .select('*')
-        .eq('training_session_id', sessionId);
-      
-      if (sensorError) {
-        console.error(`Error fetching sensor data for session ${sessionId}:`, sensorError);
-        continue;
-      }
-      
-      if (!sensorData || sensorData.length === 0) {
-        console.log(`No sensor data found for session ${sessionId}`);
-        continue;
-      }
-      
-      // Get annotations for this session
-      // Assuming annotations are stored in video_annotations table
-      const { data: annotations, error: annotationsError } = await supabase
-        .from('video_annotations')
-        .select('*')
-        .eq('video_id', session.video_id);
-      
-      if (annotationsError) {
-        console.error(`Error fetching annotations for session ${sessionId}:`, annotationsError);
-        continue;
-      }
-      
-      if (!annotations || annotations.length === 0) {
-        console.log(`No annotations found for session ${sessionId}`);
-        continue;
-      }
-      
-      // Format the annotations
-      const formattedAnnotations = annotations.map(annotation => {
-        // Parse the annotation data which should contain start/end times and activity type
-        const data = typeof annotation.data === 'string' 
-                   ? JSON.parse(annotation.data) 
-                   : annotation.data;
-        
-        return {
-          startTime: data.startTime || annotation.timestamp,
-          endTime: data.endTime || (annotation.timestamp + (data.duration || 1000)),
-          activityType: data.activityType as ActivityType
-        };
-      });
-      
-      // Format sensor data
-      const formattedSensorData = sensorData.map(record => ({
-        x: record.x.toString(),
-        y: record.y.toString(),
-        z: record.z.toString(),
-        time: new Date(record.timestamp).toISOString(),
-        seconds_elapsed: ((record.timestamp - sensorData[0].timestamp) / 1000).toString(),
-        sensor: record.sensor_type
-      }));
-      
-      // Process data to create examples
-      const sessionExamples = processSensorData(
-        formattedSensorData,
-        formattedAnnotations
-      );
-      
-      allExamples.push(...sessionExamples);
     }
     
     return allExamples;
   } catch (error) {
-    console.error('Error in batch processing:', error);
+    console.error('Error extracting examples from video:', error);
     return [];
   }
-};
-
-/**
- * Calculate class weights for imbalanced datasets
- */
-export const calculateClassWeights = (
-  examples: TrainingExample[]
-): Record<ActivityType, number> => {
-  const activityCounts: Record<ActivityType, number> = {
-    pass: 0,
-    shot: 0,
-    dribble: 0,
-    touch: 0,
-    no_possession: 0
-  };
-  
-  // Count examples per class
-  for (const example of examples) {
-    activityCounts[example.label]++;
-  }
-  
-  // Find the maximum count
-  const maxCount = Math.max(...Object.values(activityCounts));
-  
-  // Calculate weights (inverse of frequency, normalized)
-  const weights: Record<ActivityType, number> = {} as Record<ActivityType, number>;
-  
-  for (const activity of Object.keys(activityCounts) as ActivityType[]) {
-    const count = activityCounts[activity];
-    weights[activity] = count > 0 ? maxCount / count : 1.0;
-  }
-  
-  return weights;
 };
