@@ -61,9 +61,9 @@ export const useDataProcessingService = () => {
     updateTrainingStats(newTrainingExamples);
   };
 
-  const updateTrainingStats = (newExamples: TrainingExample[]) => {
+  const updateTrainingStats = (newTrainingExamples: TrainingExample[]) => {
     // Calculate total time for possession activities
-    const newPossessionTime = newExamples
+    const newPossessionTime = newTrainingExamples
       .filter(ex => ex.label !== 'no_possession' && ex.duration)
       .reduce((total, ex) => total + (ex.duration || 0), 0);
     
@@ -79,13 +79,13 @@ export const useDataProcessingService = () => {
           .update({ 
             parameters: JSON.stringify({
               annotationCount: annotations.length,
-              exampleCount: newExamples.length,
+              exampleCount: newTrainingExamples.length,
               activityCounts: {
-                pass: newExamples.filter(ex => ex.label === 'pass').length,
-                shot: newExamples.filter(ex => ex.label === 'shot').length,
-                dribble: newExamples.filter(ex => ex.label === 'dribble').length,
-                touch: newExamples.filter(ex => ex.label === 'touch').length,
-                no_possession: newExamples.filter(ex => ex.label === 'no_possession').length,
+                pass: newTrainingExamples.filter(ex => ex.label === 'pass').length,
+                shot: newTrainingExamples.filter(ex => ex.label === 'shot').length,
+                dribble: newTrainingExamples.filter(ex => ex.label === 'dribble').length,
+                touch: newTrainingExamples.filter(ex => ex.label === 'touch').length,
+                no_possession: newTrainingExamples.filter(ex => ex.label === 'no_possession').length,
               }
             })
           })
