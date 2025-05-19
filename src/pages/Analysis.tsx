@@ -1,3 +1,4 @@
+
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -211,11 +212,11 @@ const Analysis = () => {
         const newData = [...currentData];
         if (newData.length > 20) newData.shift(); // Keep last 20 data points
         
-        // Convert all values to numbers before calculations
+        // Fix: Convert string values to numbers safely before calculations
         // Parse the values and provide default 0 if null, undefined, or NaN
-        const xValue = parseFloat(String(payload.new.x)) || 0;
-        const yValue = parseFloat(String(payload.new.y)) || 0;
-        const zValue = parseFloat(String(payload.new.z)) || 0;
+        const xValue = Number(payload.new.x) || 0;
+        const yValue = Number(payload.new.y) || 0;
+        const zValue = Number(payload.new.z) || 0;
         
         newData.push({
           time: new Date().toLocaleTimeString(),
