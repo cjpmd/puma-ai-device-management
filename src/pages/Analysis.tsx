@@ -13,6 +13,30 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { processRealTimeData } from "@/utils/sensorDataUtils";
 
+// Define an adapter type to bridge the gap between Supabase data and our application types
+interface SensorRecordingFromDB {
+  id: string;
+  training_session_id: string;
+  x: number;
+  y: number;
+  z: number;
+  timestamp: number;
+  created_at: string;
+  sensor_type: string;
+}
+
+// Function to adapt database records to the format expected by our application
+const adaptSensorRecordings = (dbRecords: SensorRecordingFromDB[]): any[] => {
+  return dbRecords.map(record => ({
+    x: record.x.toString(),
+    y: record.y.toString(),
+    z: record.z.toString(),
+    seconds_elapsed: record.timestamp.toString(),
+    sensor: record.sensor_type,
+    time: record.created_at,
+  }));
+};
+
 const Analysis = () => {
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle', 'syncing', 'synced', 'error'
@@ -89,7 +113,7 @@ const Analysis = () => {
       
       if (sessionData && sessionData.length > 0) {
         // Fetch sensor data for active sessions
-        const activeSessionIds = sessionData.map(session => session.id);
+        const activeSessionIds = sessionData.map(session => session.id.toString());
         const { data: sensorData, error: sensorError } = await supabase
           .from('sensor_recordings')
           .select('*')
@@ -99,7 +123,9 @@ const Analysis = () => {
         
         // Process the sensor data to extract metrics
         if (sensorData && sensorData.length > 0) {
-          const processed = processRealTimeData(sensorData);
+          // Adapt the data to match expected format
+          const adaptedData = adaptSensorRecordings(sensorData);
+          const processed = processRealTimeData(adaptedData);
           setMetrics(processed.metrics);
           setPerformanceData(processed.timeSeriesData);
         }
