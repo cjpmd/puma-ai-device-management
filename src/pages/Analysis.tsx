@@ -1,4 +1,3 @@
-
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -207,16 +206,15 @@ const Analysis = () => {
     console.log('Sensor data update received:', payload);
     if (payload.new && payload.eventType === 'INSERT') {
       // Update metrics incrementally with new sensor data
-      // This is a simple example; in a real app, you'd process the data more thoroughly
       setPerformanceData(currentData => {
         const newData = [...currentData];
         if (newData.length > 20) newData.shift(); // Keep last 20 data points
         
-        // Fix: Convert string values to numbers safely using parseFloat
-        // Ensure we convert the values to numbers before mathematical operations
-        const xValue = typeof payload.new.x === 'number' ? payload.new.x : parseFloat(payload.new.x || '0');
-        const yValue = typeof payload.new.y === 'number' ? payload.new.y : parseFloat(payload.new.y || '0');
-        const zValue = typeof payload.new.z === 'number' ? payload.new.z : parseFloat(payload.new.z || '0');
+        // Fix: Safely convert all values to numbers using Number() function
+        // This ensures we handle nulls, undefined values, and strings properly
+        const xValue = Number(payload.new.x || 0);
+        const yValue = Number(payload.new.y || 0);
+        const zValue = Number(payload.new.z || 0);
         
         newData.push({
           time: new Date().toLocaleTimeString(),
