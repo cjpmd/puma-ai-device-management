@@ -210,10 +210,11 @@ const Analysis = () => {
         const newData = [...currentData];
         if (newData.length > 20) newData.shift(); // Keep last 20 data points
         
-        // Fix: Parse x, y, z values as numbers and use 0 as fallback
-        const xValue = parseFloat(payload.new.x || '0');
-        const yValue = parseFloat(payload.new.y || '0');
-        const zValue = parseFloat(payload.new.z || '0');
+        // Ensure values are properly converted to numbers
+        // Use Number() for explicit conversion and provide default value of 0
+        const xValue = Number(payload.new.x || 0);
+        const yValue = Number(payload.new.y || 0);
+        const zValue = Number(payload.new.z || 0);
         
         newData.push({
           time: new Date().toLocaleTimeString(),
