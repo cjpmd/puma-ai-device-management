@@ -210,8 +210,8 @@ const Analysis = () => {
         const newData = [...currentData];
         if (newData.length > 20) newData.shift(); // Keep last 20 data points
         
-        // Fix: Explicitly convert values to numbers before using in math operations
-        // Use Number() constructor with nullish coalescing to handle null and undefined
+        // Fix: Explicitly convert string values to numbers before using in math operations
+        // Make sure we have fallback values when the properties don't exist
         const xValue = Number(payload.new?.x ?? 0);
         const yValue = Number(payload.new?.y ?? 0);
         const zValue = Number(payload.new?.z ?? 0);
