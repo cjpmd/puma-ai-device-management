@@ -1,3 +1,4 @@
+
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -210,10 +211,10 @@ const Analysis = () => {
         const newData = [...currentData];
         if (newData.length > 20) newData.shift(); // Keep last 20 data points
         
-        // Fix: Ensure we're working with number values by explicitly converting and handling null/undefined
-        const xValue = typeof payload.new.x === 'number' ? payload.new.x : Number(payload.new.x || 0);
-        const yValue = typeof payload.new.y === 'number' ? payload.new.y : Number(payload.new.y || 0);
-        const zValue = typeof payload.new.z === 'number' ? payload.new.z : Number(payload.new.z || 0);
+        // Fix: Convert strings to numbers using Number() and provide defaults to handle null/undefined
+        const xValue = Number(payload.new.x || 0);
+        const yValue = Number(payload.new.y || 0);
+        const zValue = Number(payload.new.z || 0);
         
         newData.push({
           time: new Date().toLocaleTimeString(),
