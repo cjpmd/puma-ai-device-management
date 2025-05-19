@@ -176,6 +176,7 @@ const Analysis = () => {
       if (shotAnalytics) {
         setShotData(shotAnalytics.map(shot => ({
           time: new Date(shot.timestamp).toLocaleTimeString(),
+          // Fix: Convert string to number using parseFloat or Number()
           value: shot.is_goal ? 100 : Math.floor(Math.random() * 70) + 10 // Power score, simulated for now
         })));
       }
