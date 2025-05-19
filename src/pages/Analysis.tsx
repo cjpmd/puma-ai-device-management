@@ -210,8 +210,8 @@ const Analysis = () => {
         const newData = [...currentData];
         if (newData.length > 20) newData.shift(); // Keep last 20 data points
         
-        // Parse the x, y, z values to numbers, using 0 as fallback for null/undefined values
-        // The explicit Number() conversion ensures we have proper number values
+        // Fix: Convert strings to numbers using Number() and ensure all values are numeric
+        // Use 0 as a fallback for any null or undefined values
         const xValue = Number(payload.new?.x || 0);
         const yValue = Number(payload.new?.y || 0);
         const zValue = Number(payload.new?.z || 0);
