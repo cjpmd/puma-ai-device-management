@@ -1,5 +1,5 @@
 
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import MetricCard from "@/components/MetricCard";
@@ -7,11 +7,23 @@ import PerformanceChart from "@/components/PerformanceChart";
 import PlayerMovementMap from "@/components/PlayerMovementMap";
 import DeviceManager from "@/components/DeviceManager";
 import VideoAnalysisTab from "@/components/VideoAnalysis/VideoAnalysisTab";
-import { Activity, Footprints, Target, Repeat, Users, User, ChartBar, Video, Settings, Smartphone } from "lucide-react";
+import { Activity, Footprints, Target, Repeat, Users, User, ChartBar, Video, Settings, Smartphone, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { processRealTimeData } from "@/utils/sensorDataUtils";
+import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Define an adapter type to bridge the gap between Supabase data and our application types
 interface SensorRecordingFromDB {
@@ -48,7 +60,18 @@ const Analysis = () => {
   });
   const [performanceData, setPerformanceData] = useState([]);
   const [shotData, setShotData] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const { toast } = useToast();
+  const location = useLocation();
+  
+  // Extract session ID from URL query parameters if present
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const sessionId = params.get('sessionId');
+    if (sessionId) {
+      setActiveSessionId(sessionId);
+    }
+  }, [location]);
 
   useEffect(() => {
     // Initial data fetch
@@ -94,17 +117,22 @@ const Analysis = () => {
       supabase.removeChannel(sensorRecordingsChannel);
       supabase.removeChannel(objectDetectionsChannel);
     };
-  }, []);
+  }, [activeSessionId]);
 
   const fetchAnalysisData = async () => {
     try {
       setSyncStatus('syncing');
       
-      // Fetch active session data
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('sessions')
-        .select('*')
-        .is('end_time', null);
+      // Fetch active session data - either the specific one from URL or the latest active session
+      const query = supabase.from('sessions').select('*');
+      
+      if (activeSessionId) {
+        query.eq('id', activeSessionId);
+      } else {
+        query.is('end_time', null);
+      }
+      
+      const { data: sessionData, error: sessionError } = await query;
       
       if (sessionError) throw sessionError;
       
@@ -112,6 +140,11 @@ const Analysis = () => {
       setIsSessionActive(sessionData && sessionData.length > 0);
       
       if (sessionData && sessionData.length > 0) {
+        // Set active session ID if we found one
+        if (!activeSessionId && sessionData[0].id) {
+          setActiveSessionId(sessionData[0].id.toString());
+        }
+        
         // Fetch sensor data for active sessions
         const activeSessionIds = sessionData.map(session => session.id.toString());
         const { data: sensorData, error: sensorError } = await supabase
@@ -234,6 +267,7 @@ const Analysis = () => {
       if (error) throw error;
       
       setIsSessionActive(false);
+      setActiveSessionId(null);
       toast({
         title: "Session Ended",
         description: "Successfully ended tracking session",
@@ -252,21 +286,82 @@ const Analysis = () => {
   const triggerManualSync = () => {
     fetchAnalysisData();
   };
+  
+  // Generate a shareable link to this analysis page with the current session
+  const getShareableLink = () => {
+    if (!activeSessionId) return window.location.href;
+    
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/analysis?sessionId=${activeSessionId}`;
+  };
+  
+  // Copy the shareable link to clipboard
+  const copyShareableLink = () => {
+    const link = getShareableLink();
+    navigator.clipboard.writeText(link);
+    
+    toast({
+      title: "Link Copied",
+      description: "Shareable link has been copied to clipboard",
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-secondary">Performance Analysis</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-secondary">Performance Analysis</h1>
+            {activeSessionId && (
+              <Badge variant="outline" className="text-xs">
+                Session ID: {activeSessionId}
+              </Badge>
+            )}
+          </div>
           <div className="flex gap-4">
-            <Button 
-              variant="outline" 
-              onClick={triggerManualSync}
-              disabled={syncStatus === 'syncing'}
-            >
-              <Smartphone className="mr-1 h-4 w-4" />
-              {syncStatus === 'syncing' ? 'Syncing...' : 'Sync with Mobile'}
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    onClick={triggerManualSync}
+                    disabled={syncStatus === 'syncing'}
+                  >
+                    <Smartphone className="mr-1 h-4 w-4" />
+                    {syncStatus === 'syncing' ? 'Syncing...' : 'Sync with Mobile'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Manually sync data with database</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline">
+                  <Share2 className="mr-1 h-4 w-4" />
+                  Share
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <div className="space-y-4">
+                  <h4 className="font-medium">Share this analysis</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Anyone with this link can view this specific session analysis.
+                  </p>
+                  <div className="flex space-x-2">
+                    <input
+                      className="flex-1 px-3 py-2 text-sm border rounded-md"
+                      value={getShareableLink()}
+                      readOnly
+                    />
+                    <Button size="sm" onClick={copyShareableLink}>Copy</Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
             <Link to="/ml-training" className="text-primary hover:underline">
               Go to ML Training
             </Link>
@@ -284,6 +379,25 @@ const Analysis = () => {
                 End Session
               </Button>
             )}
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <div className="flex items-center gap-3">
+            <span className={`inline-flex h-2 w-2 rounded-full ${
+              syncStatus === 'synced' 
+                ? 'bg-green-500' 
+                : syncStatus === 'syncing' 
+                  ? 'bg-yellow-500 animate-pulse' 
+                  : 'bg-red-500'
+            }`}></span>
+            <span className="text-sm text-muted-foreground">
+              {syncStatus === 'synced' 
+                ? 'Data in sync with database' 
+                : syncStatus === 'syncing' 
+                  ? 'Synchronizing data...' 
+                  : 'Sync error'}
+            </span>
           </div>
         </div>
 
