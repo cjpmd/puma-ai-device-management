@@ -210,11 +210,11 @@ const Analysis = () => {
         const newData = [...currentData];
         if (newData.length > 20) newData.shift(); // Keep last 20 data points
         
-        // Ensure values are properly converted to numbers
-        // Use Number() for explicit conversion and provide default value of 0
-        const xValue = Number(payload.new.x || 0);
-        const yValue = Number(payload.new.y || 0);
-        const zValue = Number(payload.new.z || 0);
+        // Fix: Explicitly convert values to numbers before using in math operations
+        // Use Number() constructor with nullish coalescing to handle null and undefined
+        const xValue = Number(payload.new?.x ?? 0);
+        const yValue = Number(payload.new?.y ?? 0);
+        const zValue = Number(payload.new?.z ?? 0);
         
         newData.push({
           time: new Date().toLocaleTimeString(),
