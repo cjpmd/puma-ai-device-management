@@ -212,9 +212,9 @@ const Analysis = () => {
         if (newData.length > 20) newData.shift(); // Keep last 20 data points
         
         // Make sure to convert all values to numbers with proper null/undefined handling
-        const xValue = (payload.new.x !== null && payload.new.x !== undefined) ? Number(payload.new.x) : 0;
-        const yValue = (payload.new.y !== null && payload.new.y !== undefined) ? Number(payload.new.y) : 0;
-        const zValue = (payload.new.z !== null && payload.new.z !== undefined) ? Number(payload.new.z) : 0;
+        const xValue = payload.new.x !== null && payload.new.x !== undefined ? Number(payload.new.x) : 0;
+        const yValue = payload.new.y !== null && payload.new.y !== undefined ? Number(payload.new.y) : 0;
+        const zValue = payload.new.z !== null && payload.new.z !== undefined ? Number(payload.new.z) : 0;
         
         newData.push({
           time: new Date().toLocaleTimeString(),
