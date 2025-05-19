@@ -212,12 +212,17 @@ const Analysis = () => {
         const newData = [...currentData];
         if (newData.length > 20) newData.shift(); // Keep last 20 data points
         
+        // Convert string values to numbers and handle nullish values
+        const xValue = payload.new.x !== null ? Number(payload.new.x) : 0;
+        const yValue = payload.new.y !== null ? Number(payload.new.y) : 0;
+        const zValue = payload.new.z !== null ? Number(payload.new.z) : 0;
+        
         newData.push({
           time: new Date().toLocaleTimeString(),
           value: Math.sqrt(
-            Math.pow(parseFloat(payload.new.x || '0'), 2) + 
-            Math.pow(parseFloat(payload.new.y || '0'), 2) + 
-            Math.pow(parseFloat(payload.new.z || '0'), 2)
+            Math.pow(xValue, 2) + 
+            Math.pow(yValue, 2) + 
+            Math.pow(zValue, 2)
           )
         });
         return newData;
