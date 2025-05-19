@@ -1,3 +1,4 @@
+
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -214,9 +215,9 @@ const Analysis = () => {
         newData.push({
           time: new Date().toLocaleTimeString(),
           value: Math.sqrt(
-            Math.pow(parseFloat(payload.new.x || 0), 2) + 
-            Math.pow(parseFloat(payload.new.y || 0), 2) + 
-            Math.pow(parseFloat(payload.new.z || 0), 2)
+            Math.pow(parseFloat(payload.new.x || '0'), 2) + 
+            Math.pow(parseFloat(payload.new.y || '0'), 2) + 
+            Math.pow(parseFloat(payload.new.z || '0'), 2)
           )
         });
         return newData;
