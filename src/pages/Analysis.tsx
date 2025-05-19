@@ -212,11 +212,11 @@ const Analysis = () => {
         const newData = [...currentData];
         if (newData.length > 20) newData.shift(); // Keep last 20 data points
         
-        // Fix: Convert string values to numbers safely before calculations
-        // Parse the values and provide default 0 if null, undefined, or NaN
-        const xValue = Number(payload.new.x) || 0;
-        const yValue = Number(payload.new.y) || 0;
-        const zValue = Number(payload.new.z) || 0;
+        // Fix: Convert string values to numbers safely using parseFloat
+        // Ensure we convert the values to numbers before mathematical operations
+        const xValue = typeof payload.new.x === 'number' ? payload.new.x : parseFloat(payload.new.x || '0');
+        const yValue = typeof payload.new.y === 'number' ? payload.new.y : parseFloat(payload.new.y || '0');
+        const zValue = typeof payload.new.z === 'number' ? payload.new.z : parseFloat(payload.new.z || '0');
         
         newData.push({
           time: new Date().toLocaleTimeString(),
