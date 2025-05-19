@@ -1,4 +1,6 @@
+
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -14,18 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Settings, Bluetooth } from "lucide-react";
+import { useDeviceManagement, Device } from './Devices/hooks/useDeviceManagement';
 
 interface Player {
   id: string;
   name: string;
-}
-
-interface Device {
-  id: number;
-  device_name: string;
 }
 
 interface DeviceAssignment {
@@ -39,11 +37,15 @@ interface DeviceManagerProps {
 
 const DeviceManager = ({ onStartSession }: DeviceManagerProps) => {
   const [players, setPlayers] = useState<Player[]>([]);
-  const [devices, setDevices] = useState<Device[]>([]);
   const [assignments, setAssignments] = useState<DeviceAssignment[]>([]);
-  const [newDeviceName, setNewDeviceName] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
+  const { devices, fetchDevices } = useDeviceManagement();
+
+  // Only show active/connected devices
+  const activeDevices = devices.filter(device => 
+    device.status === 'connected' || !device.status
+  );
 
   useEffect(() => {
     fetchPlayers();
@@ -64,60 +66,6 @@ const DeviceManager = ({ onStartSession }: DeviceManagerProps) => {
       toast({
         title: "Error",
         description: "Failed to fetch players",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const fetchDevices = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('devices')
-        .select('id, device_name')
-        .order('device_name');
-      
-      if (error) throw error;
-      setDevices(data || []);
-    } catch (error) {
-      console.error('Error fetching devices:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch devices",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const addDevice = async () => {
-    if (!newDeviceName.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a device name",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('devices')
-        .insert({ device_name: newDeviceName.trim() })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setDevices([...devices, data]);
-      setNewDeviceName('');
-      toast({
-        title: "Success",
-        description: "Device added successfully",
-      });
-    } catch (error) {
-      console.error('Error adding device:', error);
-      toast({
-        title: "Error",
-        description: "Failed to add device",
         variant: "destructive",
       });
     }
@@ -177,67 +125,78 @@ const DeviceManager = ({ onStartSession }: DeviceManagerProps) => {
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="Enter device name"
-              value={newDeviceName}
-              onChange={(e) => setNewDeviceName(e.target.value)}
-            />
-            <Button onClick={addDevice}>Add Device</Button>
-          </div>
-
-          {assignments.map((assignment, index) => (
-            <div key={index} className="grid grid-cols-[1fr,1fr,auto] gap-2">
-              <Select
-                value={assignment.playerId.toString()}
-                onValueChange={(value) => updateAssignment(index, 'playerId', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select player" />
-                </SelectTrigger>
-                <SelectContent>
-                  {players.map((player) => (
-                    <SelectItem key={player.id} value={player.id}>
-                      {player.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={assignment.deviceId.toString()}
-                onValueChange={(value) => updateAssignment(index, 'deviceId', parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select device" />
-                </SelectTrigger>
-                <SelectContent>
-                  {devices.map((device) => (
-                    <SelectItem key={device.id} value={device.id.toString()}>
-                      {device.device_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Button
-                variant="destructive"
-                size="icon"
-                onClick={() => removeAssignment(index)}
-              >
-                ×
-              </Button>
+          {activeDevices.length === 0 ? (
+            <div className="text-center p-4">
+              <Bluetooth className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-500 mb-4">No active devices found</p>
+              <Link to="/devices">
+                <Button>Manage Devices</Button>
+              </Link>
             </div>
-          ))}
+          ) : (
+            <>
+              <div className="flex justify-between items-center">
+                <h3 className="text-sm font-medium">Assign Devices to Players</h3>
+                <Link to="/devices" className="text-xs text-primary hover:underline flex items-center">
+                  <Settings className="h-3 w-3 mr-1" />
+                  Manage Devices
+                </Link>
+              </div>
 
-          <Button onClick={addAssignment}>Add Assignment</Button>
-          
-          <Button 
-            onClick={handleStartSession}
-            disabled={assignments.length === 0}
-          >
-            Start Session
-          </Button>
+              {assignments.map((assignment, index) => (
+                <div key={index} className="grid grid-cols-[1fr,1fr,auto] gap-2">
+                  <Select
+                    value={assignment.playerId.toString()}
+                    onValueChange={(value) => updateAssignment(index, 'playerId', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select player" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {players.map((player) => (
+                        <SelectItem key={player.id} value={player.id}>
+                          {player.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={assignment.deviceId.toString()}
+                    onValueChange={(value) => updateAssignment(index, 'deviceId', parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select device" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeDevices.map((device) => (
+                        <SelectItem key={device.id} value={device.id.toString()}>
+                          {device.device_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => removeAssignment(index)}
+                  >
+                    ×
+                  </Button>
+                </div>
+              ))}
+
+              <Button onClick={addAssignment}>Add Assignment</Button>
+              
+              <Button 
+                onClick={handleStartSession}
+                disabled={assignments.length === 0}
+              >
+                Start Session
+              </Button>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -3965,7 +3965,7 @@ export type Database = {
         | "NOT_CONFIRMED"
         | "MAYBE"
       coach_role: "Manager" | "Coach" | "Helper"
-      user_role: "admin" | "manager" | "coach" | "parent"
+      user_role: "admin" | "manager" | "coach" | "parent" | "globalAdmin"
       video_processing_status: "pending" | "processing" | "completed" | "failed"
     }
     CompositeTypes: {
@@ -4090,7 +4090,7 @@ export const Constants = {
         "MAYBE",
       ],
       coach_role: ["Manager", "Coach", "Helper"],
-      user_role: ["admin", "manager", "coach", "parent"],
+      user_role: ["admin", "manager", "coach", "parent", "globalAdmin"],
       video_processing_status: ["pending", "processing", "completed", "failed"],
     },
   },

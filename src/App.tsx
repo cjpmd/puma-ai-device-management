@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Index from "./pages/Index";
 import MLTraining from "./pages/MLTraining";
 import Analysis from "./pages/Analysis";
+import Devices from "./pages/Devices";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -72,6 +74,14 @@ const App = () => (
             element={
               <PrivateRoute>
                 <Analysis />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/devices"
+            element={
+              <PrivateRoute>
+                <Devices />
               </PrivateRoute>
             }
           />

@@ -1,3 +1,4 @@
+
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -6,7 +7,7 @@ import PerformanceChart from "@/components/PerformanceChart";
 import PlayerMovementMap from "@/components/PlayerMovementMap";
 import DeviceManager from "@/components/DeviceManager";
 import VideoAnalysisTab from "@/components/VideoAnalysis/VideoAnalysisTab";
-import { Activity, Footprints, Target, Repeat, Users, User, ChartBar, Video } from "lucide-react";
+import { Activity, Footprints, Target, Repeat, Users, User, ChartBar, Video, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -79,6 +80,10 @@ const Analysis = () => {
           <div className="flex gap-4">
             <Link to="/ml-training" className="text-primary hover:underline">
               Go to ML Training
+            </Link>
+            <Link to="/devices" className="flex items-center text-primary hover:underline">
+              <Settings className="mr-1 h-4 w-4" />
+              Manage Devices
             </Link>
             {!isSessionActive ? (
               <DeviceManager onStartSession={startSession} />
