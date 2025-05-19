@@ -71,20 +71,32 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Welcome</CardTitle>
-          <CardDescription>Sign in to your account or create a new one</CardDescription>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-emerald-50 to-green-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md text-center mb-8">
+        <img 
+          src="/lovable-uploads/bf92a61b-cacd-463a-a597-0deee3ade844.png" 
+          alt="Puma-AI Logo" 
+          className="mx-auto h-24 mb-4"
+        />
+        <h1 className="text-4xl font-bold text-emerald-700 mb-2">Puma-AI</h1>
+        <h2 className="text-2xl font-medium text-emerald-600">Performance Management</h2>
+      </div>
+      
+      <Card className="w-full max-w-md border-emerald-100 shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-t-lg">
+          <CardTitle className="text-center">Welcome</CardTitle>
+          <CardDescription className="text-emerald-50">
+            Sign in to your account or create a new one
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <Tabs defaultValue="signin" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
             <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
+              <form onSubmit={handleSignIn} className="space-y-4 mt-4">
                 <div>
                   <Input
                     type="email"
@@ -92,6 +104,7 @@ const Auth = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    className="border-emerald-200 focus:border-emerald-400"
                   />
                 </div>
                 <div>
@@ -101,15 +114,20 @@ const Auth = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    className="border-emerald-200 focus:border-emerald-400"
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-emerald-600 hover:bg-emerald-700" 
+                  disabled={loading}
+                >
                   {loading ? 'Loading...' : 'Sign In'}
                 </Button>
               </form>
             </TabsContent>
             <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
+              <form onSubmit={handleSignUp} className="space-y-4 mt-4">
                 <div>
                   <Input
                     type="email"
@@ -117,6 +135,7 @@ const Auth = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    className="border-emerald-200 focus:border-emerald-400"
                   />
                 </div>
                 <div>
@@ -126,15 +145,23 @@ const Auth = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    className="border-emerald-200 focus:border-emerald-400"
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-emerald-600 hover:bg-emerald-700" 
+                  disabled={loading}
+                >
                   {loading ? 'Loading...' : 'Sign Up'}
                 </Button>
               </form>
             </TabsContent>
           </Tabs>
         </CardContent>
+        <CardFooter className="text-center text-sm text-muted-foreground">
+          Powered by advanced analytics and machine learning
+        </CardFooter>
       </Card>
     </div>
   );

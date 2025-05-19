@@ -6,6 +6,8 @@ import PerformanceChart from "@/components/PerformanceChart";
 import PlayerMovementMap from "@/components/PlayerMovementMap";
 import DeviceManager from "@/components/DeviceManager";
 import VideoAnalysisTab from "@/components/VideoAnalysis/VideoAnalysisTab";
+import IndividualPlayerTab from "@/components/Analysis/IndividualPlayerTab";
+import GroupSelectionTab from "@/components/Analysis/GroupSelectionTab";
 import { Activity, Footprints, Target, Repeat, Users, User, ChartBar, Video, Settings, Smartphone, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -477,15 +479,11 @@ const Analysis = () => {
           </TabsContent>
 
           <TabsContent value="individual" className="mt-6">
-            <div className="text-center text-gray-500">
-              Individual player analysis will be implemented here
-            </div>
+            <IndividualPlayerTab />
           </TabsContent>
 
           <TabsContent value="group" className="mt-6">
-            <div className="text-center text-gray-500">
-              Group selection and analysis will be implemented here
-            </div>
+            <GroupSelectionTab />
           </TabsContent>
 
           <TabsContent value="video" className="mt-6">
