@@ -11,6 +11,8 @@ import {
   ResponsiveContainer,
   Legend 
 } from 'recharts';
+import { useEffect, useState } from 'react';
+import { supabase } from "@/integrations/supabase/client";
 
 interface GroupAnalysisCardProps {
   title: string;
@@ -19,10 +21,38 @@ interface GroupAnalysisCardProps {
     name: string;
     position?: string;
   }>;
+  sessionId?: string | null;
+  isLiveMode?: boolean;
 }
 
-const GroupAnalysisCard = ({ title, players }: GroupAnalysisCardProps) => {
-  // Simulated group metrics
+const GroupAnalysisCard = ({ title, players, sessionId, isLiveMode = true }: GroupAnalysisCardProps) => {
+  const [groupMetrics, setGroupMetrics] = useState<any[]>([]);
+  const [averageSpeed, setAverageSpeed] = useState(Math.floor(Math.random() * 30 + 70));
+  const [averageEndurance, setAverageEndurance] = useState(Math.floor(Math.random() * 30 + 70));
+  
+  // Generate colors for each player
+  const getPlayerColors = () => {
+    const colors = ['#0F766E', '#EAB308', '#8B5CF6', '#EC4899', '#F97316', '#84CC16'];
+    
+    return players.map((player, index) => ({
+      player: player.name,
+      color: colors[index % colors.length]
+    }));
+  };
+  
+  const playerColors = getPlayerColors();
+  
+  useEffect(() => {
+    // Generate initial metrics
+    const initialMetrics = generateMetrics();
+    setGroupMetrics(initialMetrics);
+    
+    // If we have a sessionId, fetch real data
+    if (sessionId) {
+      fetchSessionData(sessionId);
+    }
+  }, [players, sessionId]);
+  
   const generateMetrics = () => {
     const metrics = ['Speed', 'Endurance', 'Technique', 'Accuracy', 'Power', 'Agility'];
     
@@ -37,20 +67,63 @@ const GroupAnalysisCard = ({ title, players }: GroupAnalysisCardProps) => {
       return result;
     });
   };
-
-  const groupMetrics = generateMetrics();
   
-  // Generate colors for each player
-  const getPlayerColors = () => {
-    const colors = ['#0F766E', '#EAB308', '#8B5CF6', '#EC4899', '#F97316', '#84CC16'];
-    
-    return players.map((player, index) => ({
-      player: player.name,
-      color: colors[index % colors.length]
-    }));
+  const fetchSessionData = async (sessionId: string) => {
+    try {
+      // Fetch sensor data for all players in this group for the specified session
+      const playerIds = players.map(player => player.id);
+      
+      const { data, error } = await supabase
+        .from('sensor_recordings')
+        .select('*')
+        .eq('training_session_id', sessionId)
+        .in('player_id', playerIds)
+        .limit(200);
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        // Process the data to extract metrics for each player
+        // This is simplified - in a real app, you'd have more sophisticated data processing
+        
+        // For demo purposes, we'll use the session data to influence our random values
+        const metrics = ['Speed', 'Endurance', 'Technique', 'Accuracy', 'Power', 'Agility'];
+        
+        const processedMetrics = metrics.map(metric => {
+          const result: any = { name: metric };
+          
+          players.forEach(player => {
+            // Get data for this specific player
+            const playerData = data.filter(item => item.player_id === player.id);
+            const dataFactor = playerData.length > 0 ? Math.min(playerData.length / 10, 1) : 0.5;
+            
+            // Generate a semi-random value influenced by the data
+            result[player.name] = Math.floor(60 + Math.random() * 40 * dataFactor);
+          });
+          
+          return result;
+        });
+        
+        setGroupMetrics(processedMetrics);
+        
+        // Update average metrics
+        const speedSum = players.reduce((sum, player) => {
+          const playerSpeed = processedMetrics.find(m => m.name === 'Speed')?.[player.name] || 0;
+          return sum + playerSpeed;
+        }, 0);
+        
+        const enduranceSum = players.reduce((sum, player) => {
+          const playerEndurance = processedMetrics.find(m => m.name === 'Endurance')?.[player.name] || 0;
+          return sum + playerEndurance;
+        }, 0);
+        
+        setAverageSpeed(Math.floor(speedSum / players.length));
+        setAverageEndurance(Math.floor(enduranceSum / players.length));
+      }
+    } catch (error) {
+      console.error('Error fetching group session data:', error);
+    }
   };
-  
-  const playerColors = getPlayerColors();
   
   return (
     <Card className="w-full">
@@ -89,16 +162,16 @@ const GroupAnalysisCard = ({ title, players }: GroupAnalysisCardProps) => {
             <div className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span>Average Speed</span>
-                <span>{Math.floor(Math.random() * 30 + 70)}/100</span>
+                <span>{averageSpeed}/100</span>
               </div>
-              <Progress value={Math.floor(Math.random() * 30 + 70)} />
+              <Progress value={averageSpeed} />
             </div>
             <div className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span>Average Endurance</span>
-                <span>{Math.floor(Math.random() * 30 + 70)}/100</span>
+                <span>{averageEndurance}/100</span>
               </div>
-              <Progress value={Math.floor(Math.random() * 30 + 70)} />
+              <Progress value={averageEndurance} />
             </div>
           </div>
         </div>
