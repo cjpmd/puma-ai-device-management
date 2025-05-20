@@ -39,13 +39,13 @@ const PlayerSelector = ({ onPlayerSelect, selectedPlayerId }: PlayerSelectorProp
         setLoading(true);
         // Fetch players from the database
         const { data, error } = await supabase
-          .from('player_profiles')
+          .from('players')
           .select('id, name, position')
           .order('name');
           
         if (error) throw error;
         
-        // If no data in the player_profiles table, use sample data for demo
+        // If no data in the players table, use sample data for demo
         if (!data || data.length === 0) {
           setPlayers([
             { id: '1', name: 'Alex Johnson', position: 'Forward' },
