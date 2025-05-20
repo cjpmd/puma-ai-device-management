@@ -59,6 +59,39 @@ const BiometricsTab = () => {
   const [globalTolerances, setGlobalTolerances] = useState<PlayerToleranceSettingsType>(defaultTolerances);
   const [playerTolerances, setPlayerTolerances] = useState<ToleranceSettingsMap>({});
   
+  // Recovery mode data
+  const [injuryDetails, setInjuryDetails] = useState({
+    type: "Grade 2 hamstring strain",
+    location: "Right leg",
+    dateOccurred: "2025-05-10",
+    estimatedRecovery: "2-3 weeks",
+    currentPhase: "Early Recovery",
+    daysElapsed: 4,
+    totalDays: 21,
+    nextPhase: "Strength Building",
+    daysToNextPhase: 3,
+    returnToPlayDate: "2025-06-06",
+    daysToReturn: 17
+  });
+  
+  // Smart bandage data
+  const [smartBandageData, setSmartBandageData] = useState({
+    strain: { value: 23.4, change: -12 },
+    force: { value: 2.1, change: -0.3 },
+    temperature: { value: 37.2, change: -0.4 },
+    swelling: { value: 8, change: -3 },
+    rangeOfMotion: { value: 72, change: 5 }
+  });
+  
+  // Physiotherapy plan
+  const [physioPlan, setPhysioPlan] = useState([
+    { step: 1, instruction: "Light stretching exercises 2x daily" },
+    { step: 2, instruction: "Ice therapy after exercises" },
+    { step: 3, instruction: "Resistance band work starting day 5" },
+    { step: 4, instruction: "Gradual weight-bearing from day 7" },
+    { step: 5, instruction: "Proprioception exercises from day 10" }
+  ]);
+  
   useEffect(() => {
     // Fetch actual players from the database
     const fetchPlayers = async () => {
@@ -569,6 +602,7 @@ const BiometricsTab = () => {
                   <TabsTrigger value="combined">Combined Analysis</TabsTrigger>
                   {playerMode === "recovery" && <TabsTrigger value="recovery">Recovery Plan</TabsTrigger>}
                   {playerMode === "recovery" && <TabsTrigger value="smart-bandage">Smart Bandage Data</TabsTrigger>}
+                  {playerMode === "recovery" && <TabsTrigger value="medical">Medical Assessment</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="charts" className="space-y-6">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
@@ -652,25 +686,20 @@ const BiometricsTab = () => {
                         <CardContent>
                           <div className="space-y-4">
                             <div className="p-4 border rounded-md bg-slate-50">
-                              <h3 className="font-medium mb-2">Medical Assessment</h3>
-                              <p className="text-sm text-muted-foreground">Grade 2 hamstring strain, estimated recovery time: 2-3 weeks</p>
+                              <h3 className="font-medium mb-2">Injury Overview</h3>
+                              <p className="text-sm text-muted-foreground">{injuryDetails.type}, {injuryDetails.location}, onset date: {injuryDetails.dateOccurred}</p>
+                              <p className="text-sm text-muted-foreground mt-1">Estimated recovery time: {injuryDetails.estimatedRecovery}</p>
                             </div>
                             
                             <div className="p-4 border rounded-md">
-                              <h3 className="font-medium mb-2">Physio Instructions</h3>
+                              <h3 className="font-medium mb-2">Physiotherapy Instructions</h3>
                               <ul className="space-y-2 text-sm">
-                                <li className="flex items-start">
-                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs text-blue-600 mr-2">1</span>
-                                  <span>Light stretching exercises 2x daily</span>
-                                </li>
-                                <li className="flex items-start">
-                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs text-blue-600 mr-2">2</span>
-                                  <span>Ice therapy after exercises</span>
-                                </li>
-                                <li className="flex items-start">
-                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs text-blue-600 mr-2">3</span>
-                                  <span>Resistance band work starting day 5</span>
-                                </li>
+                                {physioPlan.map((instruction, index) => (
+                                  <li key={index} className="flex items-start">
+                                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs text-blue-600 mr-2">{instruction.step}</span>
+                                    <span>{instruction.instruction}</span>
+                                  </li>
+                                ))}
                               </ul>
                             </div>
                             
@@ -680,8 +709,8 @@ const BiometricsTab = () => {
                                   <CardTitle className="text-sm">Current Phase</CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-0 pb-4 px-4">
-                                  <p className="text-xl font-bold">Early Recovery</p>
-                                  <p className="text-xs text-muted-foreground">Day 4 of 21</p>
+                                  <p className="text-xl font-bold">{injuryDetails.currentPhase}</p>
+                                  <p className="text-xs text-muted-foreground">Day {injuryDetails.daysElapsed} of {injuryDetails.totalDays}</p>
                                 </CardContent>
                               </Card>
                               <Card>
@@ -689,8 +718,8 @@ const BiometricsTab = () => {
                                   <CardTitle className="text-sm">Next Phase</CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-0 pb-4 px-4">
-                                  <p className="text-xl font-bold">Strength Building</p>
-                                  <p className="text-xs text-muted-foreground">Starts in 3 days</p>
+                                  <p className="text-xl font-bold">{injuryDetails.nextPhase}</p>
+                                  <p className="text-xs text-muted-foreground">Starts in {injuryDetails.daysToNextPhase} days</p>
                                 </CardContent>
                               </Card>
                               <Card>
@@ -698,10 +727,131 @@ const BiometricsTab = () => {
                                   <CardTitle className="text-sm">Return to Play</CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-0 pb-4 px-4">
-                                  <p className="text-xl font-bold">17 days</p>
-                                  <p className="text-xs text-muted-foreground">Target date: June 6</p>
+                                  <p className="text-xl font-bold">{injuryDetails.daysToReturn} days</p>
+                                  <p className="text-xs text-muted-foreground">Target date: {injuryDetails.returnToPlayDate}</p>
                                 </CardContent>
                               </Card>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </TabsContent>
+                )}
+                
+                {playerMode === "recovery" && (
+                  <TabsContent value="medical">
+                    <div className="mt-4 space-y-4">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Medical Assessment</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-6">
+                            <div className="p-4 border rounded-md bg-slate-50">
+                              <h3 className="font-medium mb-2">Diagnosis</h3>
+                              <p className="text-sm">{injuryDetails.type} in the {injuryDetails.location}, with mild inflammation and restricted range of motion.</p>
+                              <div className="mt-3 flex gap-3">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                  Grade 2 Strain
+                                </span>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  Moderate Severity
+                                </span>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  Good Prognosis
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                <h3 className="font-medium text-sm text-muted-foreground mb-2">TREATMENT RECOMMENDATIONS</h3>
+                                <div className="space-y-3">
+                                  <div className="p-3 border rounded bg-white">
+                                    <h4 className="font-medium text-sm">Immediate Phase (Days 1-5)</h4>
+                                    <ul className="mt-2 space-y-1 text-sm">
+                                      <li>• RICE protocol (Rest, Ice, Compression, Elevation)</li>
+                                      <li>• Anti-inflammatory medication as prescribed</li>
+                                      <li>• Limited weight bearing with crutch assistance</li>
+                                      <li>• Gentle range of motion exercises</li>
+                                    </ul>
+                                  </div>
+                                  
+                                  <div className="p-3 border rounded bg-white">
+                                    <h4 className="font-medium text-sm">Intermediate Phase (Days 6-14)</h4>
+                                    <ul className="mt-2 space-y-1 text-sm">
+                                      <li>• Progressive resistance exercises</li>
+                                      <li>• Stationary bike (low resistance)</li>
+                                      <li>• Pool therapy for reduced weight bearing</li>
+                                      <li>• Proprioception training</li>
+                                    </ul>
+                                  </div>
+                                  
+                                  <div className="p-3 border rounded bg-white">
+                                    <h4 className="font-medium text-sm">Advanced Phase (Days 15+)</h4>
+                                    <ul className="mt-2 space-y-1 text-sm">
+                                      <li>• Sport-specific drills (non-contact)</li>
+                                      <li>• Agility and acceleration training</li>
+                                      <li>• Controlled scrimmage participation</li>
+                                      <li>• Return-to-play testing</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <h3 className="font-medium text-sm text-muted-foreground mb-2">RECOVERY MONITORING</h3>
+                                <div className="space-y-4">
+                                  <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-sm font-medium">Pain Level</span>
+                                      <span className="text-sm text-muted-foreground">3/10</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                      <div className="bg-amber-500 h-full rounded-full" style={{ width: '30%' }}></div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-sm font-medium">Range of Motion</span>
+                                      <span className="text-sm text-muted-foreground">65%</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                      <div className="bg-blue-500 h-full rounded-full" style={{ width: '65%' }}></div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-sm font-medium">Strength (vs. Uninjured Side)</span>
+                                      <span className="text-sm text-muted-foreground">45%</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                      <div className="bg-red-500 h-full rounded-full" style={{ width: '45%' }}></div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-sm font-medium">Function</span>
+                                      <span className="text-sm text-muted-foreground">50%</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                      <div className="bg-orange-500 h-full rounded-full" style={{ width: '50%' }}></div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="mt-6 p-3 border rounded bg-blue-50 border-blue-200">
+                                    <h4 className="font-medium text-sm text-blue-800">Medical Notes</h4>
+                                    <p className="mt-1 text-sm text-blue-700">
+                                      Patient showing good response to initial treatment. MRI confirms Grade 2 hamstring strain without tendon avulsion. 
+                                      Continued adherence to rehab protocol recommended. Weekly reassessment scheduled.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </CardContent>
@@ -747,28 +897,57 @@ const BiometricsTab = () => {
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                                   <div className="p-4 bg-slate-50 rounded-lg text-center">
                                     <h4 className="text-xs text-muted-foreground mb-1">Strain</h4>
-                                    <p className="text-xl font-bold">23.4%</p>
-                                    <p className="text-xs text-green-600">-12% from yesterday</p>
+                                    <p className="text-xl font-bold">{smartBandageData.strain.value}%</p>
+                                    <p className="text-xs text-green-600">{smartBandageData.strain.change}% from yesterday</p>
                                   </div>
                                   <div className="p-4 bg-slate-50 rounded-lg text-center">
                                     <h4 className="text-xs text-muted-foreground mb-1">Force</h4>
-                                    <p className="text-xl font-bold">2.1 N</p>
-                                    <p className="text-xs text-green-600">-0.3 N from yesterday</p>
+                                    <p className="text-xl font-bold">{smartBandageData.force.value} N</p>
+                                    <p className="text-xs text-green-600">{smartBandageData.force.change} N from yesterday</p>
                                   </div>
                                   <div className="p-4 bg-slate-50 rounded-lg text-center">
                                     <h4 className="text-xs text-muted-foreground mb-1">Temperature</h4>
-                                    <p className="text-xl font-bold">37.2°C</p>
-                                    <p className="text-xs text-green-600">-0.4°C from yesterday</p>
+                                    <p className="text-xl font-bold">{smartBandageData.temperature.value}°C</p>
+                                    <p className="text-xs text-green-600">{smartBandageData.temperature.change}°C from yesterday</p>
                                   </div>
                                   <div className="p-4 bg-slate-50 rounded-lg text-center">
                                     <h4 className="text-xs text-muted-foreground mb-1">Swelling</h4>
-                                    <p className="text-xl font-bold">8%</p>
-                                    <p className="text-xs text-green-600">-3% from yesterday</p>
+                                    <p className="text-xl font-bold">{smartBandageData.swelling.value}%</p>
+                                    <p className="text-xs text-green-600">{smartBandageData.swelling.change}% from yesterday</p>
                                   </div>
                                   <div className="p-4 bg-slate-50 rounded-lg text-center">
                                     <h4 className="text-xs text-muted-foreground mb-1">Range of Motion</h4>
-                                    <p className="text-xl font-bold">72°</p>
-                                    <p className="text-xs text-green-600">+5° from yesterday</p>
+                                    <p className="text-xl font-bold">{smartBandageData.rangeOfMotion.value}°</p>
+                                    <p className="text-xs text-green-600">+{smartBandageData.rangeOfMotion.change}° from yesterday</p>
+                                  </div>
+                                </div>
+                                <div className="mt-6 p-4 border rounded-md">
+                                  <h3 className="text-sm font-medium mb-2">Smart Bandage Configuration</h3>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Sampling Rate:</span>
+                                      <span className="font-medium">Every 5 minutes</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Last Calibrated:</span>
+                                      <span className="font-medium">Today, 08:15 AM</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Battery Level:</span>
+                                      <span className="font-medium">87%</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Alert Threshold:</span>
+                                      <span className="font-medium">Enabled</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Medication Delivery:</span>
+                                      <span className="font-medium">Disabled</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Sensor Type:</span>
+                                      <span className="font-medium">Advanced Recovery+</span>
+                                    </div>
                                   </div>
                                 </div>
                               </CardContent>
