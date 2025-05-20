@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import TeamSummary from "./TeamSummary";
 import { HeartPulse, Droplet, Thermometer, Wind, Activity, Shield, Clock, Bluetooth } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PlayerToleranceSettings as PlayerToleranceSettingsType } from "./PlayerToleranceSettings";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Player {
   id: string;
@@ -51,19 +53,53 @@ const BiometricsTab = () => {
   const [bluetoothStatus, setBluetoothStatus] = useState<"connected" | "disconnected" | "searching">("disconnected");
   const { toast } = useToast();
   
-  const [allPlayers, setAllPlayers] = useState<Player[]>([
-    { id: "1", name: "John Smith", position: "Forward" },
-    { id: "2", name: "David Jones", position: "Midfielder" },
-    { id: "3", name: "Michael Brown", position: "Defender" },
-    { id: "4", name: "Robert Wilson", position: "Goalkeeper" },
-    { id: "5", name: "James Taylor", position: "Midfielder" }
-  ]);
+  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   
   // Tolerance settings
   const [globalTolerances, setGlobalTolerances] = useState<PlayerToleranceSettingsType>(defaultTolerances);
   const [playerTolerances, setPlayerTolerances] = useState<ToleranceSettingsMap>({});
   
   useEffect(() => {
+    // Fetch actual players from the database
+    const fetchPlayers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('players')
+          .select('id, name, player_type')
+          .order('name');
+          
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          const mappedPlayers = data.map(player => ({
+            id: player.id,
+            name: player.name,
+            position: player.player_type === 'GOALKEEPER' ? 'Goalkeeper' : 'Outfield'
+          }));
+          setAllPlayers(mappedPlayers);
+        } else {
+          // Fallback sample data if no players in database
+          setAllPlayers([
+            { id: "1", name: "Alex Johnson", position: "Forward" },
+            { id: "2", name: "Casey Smith", position: "Midfielder" },
+            { id: "3", name: "Jamie Wilson", position: "Defender" },
+            { id: "4", name: "Taylor Roberts", position: "Goalkeeper" },
+          ]);
+        }
+      } catch (error) {
+        console.error('Error fetching players:', error);
+        // Fallback to sample data
+        setAllPlayers([
+          { id: "1", name: "Alex Johnson", position: "Forward" },
+          { id: "2", name: "Casey Smith", position: "Midfielder" },
+          { id: "3", name: "Jamie Wilson", position: "Defender" },
+          { id: "4", name: "Taylor Roberts", position: "Goalkeeper" },
+        ]);
+      }
+    };
+    
+    fetchPlayers();
+    
     // Initialize player tolerances
     const initialPlayerTolerances: ToleranceSettingsMap = {};
     allPlayers.forEach(player => {
@@ -86,6 +122,34 @@ const BiometricsTab = () => {
     
     return () => clearInterval(interval);
   }, []);
+  
+  // Update tolerances when players change
+  useEffect(() => {
+    const initialPlayerTolerances: ToleranceSettingsMap = {};
+    allPlayers.forEach(player => {
+      initialPlayerTolerances[player.id] = {
+        ...defaultTolerances,
+        playerId: player.id,
+        playerName: player.name
+      };
+    });
+    
+    // Try to load saved settings from local storage
+    const savedSettings = localStorage.getItem('playerToleranceSettings');
+    if (savedSettings) {
+      try {
+        const parsedSettings = JSON.parse(savedSettings);
+        // Merge saved settings with defaults for any new players
+        const mergedSettings = { ...initialPlayerTolerances, ...parsedSettings };
+        setPlayerTolerances(mergedSettings);
+      } catch (e) {
+        console.error('Error parsing saved tolerance settings', e);
+        setPlayerTolerances(initialPlayerTolerances);
+      }
+    } else {
+      setPlayerTolerances(initialPlayerTolerances);
+    }
+  }, [allPlayers]);
   
   // Current biometric values - in a real app, these would come from device readings
   const playerBiometrics = allPlayers.map(player => {
@@ -239,7 +303,7 @@ const BiometricsTab = () => {
     
     toast({
       title: "Searching for Bluetooth devices",
-      description: "Looking for compatible biometric sensors...",
+      description: "Looking for compatible biometric sensors and Bluetooth boosters...",
     });
     
     // Simulate connection process
@@ -248,7 +312,7 @@ const BiometricsTab = () => {
       
       toast({
         title: "Bluetooth Connected",
-        description: "Successfully connected to biometric sensors",
+        description: "Successfully connected to biometric sensors and Bluetooth booster",
       });
     }, 2000);
   };
@@ -352,7 +416,7 @@ const BiometricsTab = () => {
             )} />
           </div>
           <span className="text-sm font-medium">
-            {bluetoothStatus === "connected" ? "Bluetooth Connected" : 
+            {bluetoothStatus === "connected" ? "Bluetooth Connected (with Range Booster)" : 
              bluetoothStatus === "searching" ? "Searching for devices..." : "Bluetooth Disconnected"}
           </span>
         </div>
@@ -382,7 +446,7 @@ const BiometricsTab = () => {
           {bluetoothStatus === "disconnected" && (
             <Alert>
               <Bluetooth className="h-4 w-4" />
-              <AlertTitle>Bluetooth Connection Required</AlertTitle>
+              <AlertTitle>Bluetooth Range Booster Required</AlertTitle>
               <AlertDescription>
                 To receive live biometric data from multiple players simultaneously, 
                 connect a Bluetooth repeater or booster device. This will extend the range 

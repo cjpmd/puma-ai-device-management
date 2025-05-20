@@ -1,3 +1,4 @@
+
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -9,7 +10,7 @@ import VideoAnalysisTab from "@/components/VideoAnalysis/VideoAnalysisTab";
 import IndividualPlayerTab from "@/components/Analysis/IndividualPlayerTab";
 import GroupSelectionTab from "@/components/Analysis/GroupSelectionTab";
 import BiometricsTab from "@/components/Analysis/BiometricsTab";
-import { Activity, Footprints, Target, Repeat, Users, User, ChartBar, Video, Settings, Smartphone, Share2, HeartPulse } from "lucide-react";
+import { Activity, Footprints, Target, Repeat, Users, User, ChartBar, Video, Settings, Bluetooth, Share2, HeartPulse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +34,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // Define an adapter type to bridge the gap between Supabase data and our application types
 interface SensorRecordingFromDB {
@@ -72,6 +82,8 @@ const Analysis = () => {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [availableSessions, setAvailableSessions] = useState<{id: string, date: string, type: string}[]>([]);
   const [isLiveMode, setIsLiveMode] = useState(true);
+  const [isBluetoothDialogOpen, setIsBluetoothDialogOpen] = useState(false);
+  const [bluetoothStatus, setBluetoothStatus] = useState<"connected" | "disconnected" | "searching">("disconnected");
   const { toast } = useToast();
   const location = useLocation();
   
@@ -81,6 +93,7 @@ const Analysis = () => {
     const sessionId = params.get('sessionId');
     if (sessionId) {
       setActiveSessionId(sessionId);
+      setIsLiveMode(false);
     }
   }, [location]);
 
@@ -137,7 +150,7 @@ const Analysis = () => {
         .from('sessions')
         .select('id, start_time, end_time, session_type')
         .order('start_time', { ascending: false })
-        .limit(10);
+        .limit(20);
       
       if (error) throw error;
       
@@ -145,7 +158,7 @@ const Analysis = () => {
         const formattedSessions = data.map(session => ({
           id: session.id.toString(),
           date: new Date(session.start_time).toLocaleDateString(),
-          type: session.session_type
+          type: session.session_type || 'Training'
         }));
         
         setAvailableSessions(formattedSessions);
@@ -363,6 +376,26 @@ const Analysis = () => {
     setActiveSessionId(sessionId);
     setIsLiveMode(false);
   };
+  
+  const handleBluetoothConnect = () => {
+    setBluetoothStatus("searching");
+    
+    toast({
+      title: "Searching for Bluetooth devices",
+      description: "Looking for compatible sensors and Bluetooth boosters...",
+    });
+    
+    // Simulate connection process
+    setTimeout(() => {
+      setBluetoothStatus("connected");
+      setIsBluetoothDialogOpen(false);
+      
+      toast({
+        title: "Bluetooth Connected",
+        description: "Successfully connected to biometric sensors and Bluetooth range booster",
+      });
+    }, 2000);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -411,23 +444,86 @@ const Analysis = () => {
               )}
             </div>
             
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    onClick={triggerManualSync}
-                    disabled={syncStatus === 'syncing'}
-                  >
-                    <Smartphone className="mr-1 h-4 w-4" />
-                    {syncStatus === 'syncing' ? 'Syncing...' : 'Sync with Mobile'}
+            <div className="flex items-center gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      onClick={triggerManualSync}
+                      disabled={syncStatus === 'syncing'}
+                    >
+                      <Bluetooth className="mr-1 h-4 w-4" />
+                      {syncStatus === 'syncing' ? 'Syncing...' : 'Sync with Mobile'}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Manually sync data with database</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <Dialog open={isBluetoothDialogOpen} onOpenChange={setIsBluetoothDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Bluetooth className="mr-1 h-4 w-4" />
+                    Bluetooth Settings
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Manually sync data with database</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Bluetooth Configuration</DialogTitle>
+                    <DialogDescription>
+                      Configure Bluetooth settings for enhanced range and multi-player tracking
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">Bluetooth Range Booster</h3>
+                        <p className="text-sm text-muted-foreground">Connect a range booster for multi-player tracking</p>
+                      </div>
+                      <Badge 
+                        variant={bluetoothStatus === "connected" ? "default" : "outline"}
+                        className={bluetoothStatus === "searching" ? "animate-pulse" : ""}
+                      >
+                        {bluetoothStatus === "connected" ? "Connected" : 
+                         bluetoothStatus === "searching" ? "Searching..." : "Disconnected"}
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium">Requirements</h4>
+                      <ul className="text-sm space-y-1 list-disc pl-5">
+                        <li>Use a compatible Bluetooth 5.0 repeater</li>
+                        <li>Position booster centrally in playing area</li>
+                        <li>Maximum range: 50-100m depending on conditions</li>
+                        <li>Supports up to 20 simultaneous device connections</li>
+                      </ul>
+                    </div>
+                    
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm">
+                      <p className="text-amber-800">
+                        For optimal performance with multiple players, a Bluetooth range booster
+                        is strongly recommended. Without a booster, you may experience data loss
+                        from players at the edges of the playing area.
+                      </p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    {bluetoothStatus !== "connected" ? (
+                      <Button onClick={handleBluetoothConnect}>
+                        Connect Bluetooth Booster
+                      </Button>
+                    ) : (
+                      <Button variant="outline" onClick={() => setBluetoothStatus("disconnected")}>
+                        Disconnect
+                      </Button>
+                    )}
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
 
             <Popover>
               <PopoverTrigger asChild>
@@ -490,6 +586,13 @@ const Analysis = () => {
                   ? 'Synchronizing data...' 
                   : 'Sync error'}
             </span>
+            
+            {bluetoothStatus === "connected" && (
+              <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 border-green-200">
+                <Bluetooth className="h-3 w-3 mr-1" />
+                Bluetooth Booster Active
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -568,11 +671,17 @@ const Analysis = () => {
           </TabsContent>
 
           <TabsContent value="individual" className="mt-6">
-            <IndividualPlayerTab />
+            <IndividualPlayerTab 
+              sessionId={activeSessionId}
+              isLiveMode={isLiveMode}
+            />
           </TabsContent>
 
           <TabsContent value="group" className="mt-6">
-            <GroupSelectionTab />
+            <GroupSelectionTab 
+              sessionId={activeSessionId}
+              isLiveMode={isLiveMode}
+            />
           </TabsContent>
 
           <TabsContent value="biometrics" className="mt-6">
