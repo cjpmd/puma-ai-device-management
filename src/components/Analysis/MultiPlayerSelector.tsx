@@ -22,6 +22,7 @@ interface Player {
   id: string;
   name: string;
   position?: string;
+  player_type?: string;
 }
 
 interface MultiPlayerSelectorProps {
@@ -44,7 +45,7 @@ const MultiPlayerSelector = ({
         // Fetch players from the database
         const { data, error } = await supabase
           .from('players')
-          .select('id, name, position')
+          .select('id, name, player_type')
           .order('name');
           
         if (error) throw error;
@@ -62,7 +63,14 @@ const MultiPlayerSelector = ({
             { id: '8', name: 'Parker Evans', position: 'Forward' },
           ]);
         } else {
-          setPlayers(data);
+          // Map player_type to position for display purposes
+          const mappedPlayers = data.map(player => ({
+            id: player.id,
+            name: player.name,
+            position: player.player_type === 'GOALKEEPER' ? 'Goalkeeper' : 
+                     player.player_type === 'OUTFIELD' ? 'Outfield' : player.player_type
+          }));
+          setPlayers(mappedPlayers);
         }
       } catch (error) {
         console.error('Error fetching players:', error);
