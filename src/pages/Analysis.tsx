@@ -8,7 +8,8 @@ import DeviceManager from "@/components/DeviceManager";
 import VideoAnalysisTab from "@/components/VideoAnalysis/VideoAnalysisTab";
 import IndividualPlayerTab from "@/components/Analysis/IndividualPlayerTab";
 import GroupSelectionTab from "@/components/Analysis/GroupSelectionTab";
-import { Activity, Footprints, Target, Repeat, Users, User, ChartBar, Video, Settings, Smartphone, Share2 } from "lucide-react";
+import BiometricsTab from "@/components/Analysis/BiometricsTab";
+import { Activity, Footprints, Target, Repeat, Users, User, ChartBar, Video, Settings, Smartphone, Share2, HeartPulse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -408,7 +409,7 @@ const Analysis = () => {
         </div>
 
         <Tabs defaultValue="overall" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overall" className="flex items-center gap-2">
               <ChartBar className="h-4 w-4" />
               Overall Session
@@ -420,6 +421,10 @@ const Analysis = () => {
             <TabsTrigger value="group" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Group Selection
+            </TabsTrigger>
+            <TabsTrigger value="biometrics" className="flex items-center gap-2">
+              <HeartPulse className="h-4 w-4" />
+              Biometrics
             </TabsTrigger>
             <TabsTrigger value="video" className="flex items-center gap-2">
               <Video className="h-4 w-4" />
@@ -483,6 +488,10 @@ const Analysis = () => {
 
           <TabsContent value="group" className="mt-6">
             <GroupSelectionTab />
+          </TabsContent>
+
+          <TabsContent value="biometrics" className="mt-6">
+            <BiometricsTab />
           </TabsContent>
 
           <TabsContent value="video" className="mt-6">
