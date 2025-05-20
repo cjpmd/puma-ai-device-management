@@ -214,9 +214,9 @@ const Analysis = () => {
         if (newData.length > 20) newData.shift(); // Keep last 20 data points
         
         // Convert string values to numbers before using in math operations
-        const xValue = Number(payload.new?.x ?? 0);
-        const yValue = Number(payload.new?.y ?? 0);
-        const zValue = Number(payload.new?.z ?? 0);
+        const xValue = Number(payload.new?.x || 0);
+        const yValue = Number(payload.new?.y || 0);
+        const zValue = Number(payload.new?.z || 0);
         
         newData.push({
           time: new Date().toLocaleTimeString(),

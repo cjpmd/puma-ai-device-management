@@ -4,9 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
 import PlayerSelector from "./PlayerSelector";
 import BiometricChart from "./BiometricChart";
 import BiometricDetailsCard from "./BiometricDetailsCard";
+import ToleranceSettingsDialog from "./ToleranceSettingsDialog";
 import { HeartPulse, Droplet, Thermometer, Wind, Activity, Shield, Clock } from "lucide-react";
 
 interface Player {
@@ -20,10 +22,43 @@ interface BiometricData {
   value: number;
 }
 
+interface ToleranceRange {
+  min: number;
+  max: number;
+}
+
+interface ToleranceSettings {
+  heartRate: ToleranceRange;
+  hydration: ToleranceRange;
+  lacticAcid: ToleranceRange;
+  vo2Max: ToleranceRange;
+  muscleFatigue: ToleranceRange;
+}
+
 const BiometricsTab = () => {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [timeRange, setTimeRange] = useState<string>("today");
   const [playerMode, setPlayerMode] = useState<"performance" | "recovery">("performance");
+  const [sessionType, setSessionType] = useState<"training" | "match">("training");
+  const { toast } = useToast();
+
+  // Tolerance settings
+  const [tolerances, setTolerances] = useState<ToleranceSettings>({
+    heartRate: { min: 60, max: 180 },
+    hydration: { min: 80, max: 100 },
+    lacticAcid: { min: 0, max: 4 },
+    vo2Max: { min: 40, max: 60 },
+    muscleFatigue: { min: 0, max: 70 }
+  });
+  
+  // Current biometric values
+  const currentValues = {
+    heartRate: playerMode === "performance" ? 132 : 76,
+    hydration: playerMode === "performance" ? 82 : 96,
+    lacticAcid: playerMode === "performance" ? 5.2 : 1.3,
+    vo2Max: playerMode === "performance" ? 52 : 48,
+    muscleFatigue: playerMode === "performance" ? 65 : 15,
+  };
   
   // Sample biometric data for demonstration
   const heartRateData: BiometricData[] = [
@@ -94,13 +129,56 @@ const BiometricsTab = () => {
     setPlayerMode(checked ? "recovery" : "performance");
   };
 
+  const handleToleranceChange = (newTolerances: ToleranceSettings) => {
+    setTolerances(newTolerances);
+    toast({
+      title: "Tolerance Settings Updated",
+      description: "New biometric tolerance ranges have been applied",
+    });
+  };
+
+  const getStatusFromValue = (value: number, toleranceRange: ToleranceRange): "good" | "normal" | "warning" | "critical" => {
+    if (value < toleranceRange.min) {
+      // Below minimum
+      const distance = toleranceRange.min - value;
+      const percentBelowMin = distance / toleranceRange.min;
+      
+      return percentBelowMin > 0.1 ? "critical" : "warning";
+    } else if (value > toleranceRange.max) {
+      // Above maximum
+      const distance = value - toleranceRange.max;
+      const percentAboveMax = distance / toleranceRange.max;
+      
+      return percentAboveMax > 0.1 ? "critical" : "warning";
+    } else {
+      // Within range
+      const range = toleranceRange.max - toleranceRange.min;
+      const distanceFromMin = value - toleranceRange.min;
+      const percentInRange = distanceFromMin / range;
+      
+      return percentInRange > 0.25 && percentInRange < 0.75 ? "good" : "normal";
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="w-full sm:w-1/3">
           <PlayerSelector onPlayerSelect={handlePlayerSelect} selectedPlayerId={selectedPlayer?.id} />
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex flex-col sm:flex-row items-center gap-6">
+          <div className="flex items-center space-x-2">
+            <Select value={sessionType} onValueChange={(value: "training" | "match") => setSessionType(value)}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Session Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="training">Training Session</SelectItem>
+                <SelectItem value="match">Match Play</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
           <div className="flex items-center space-x-2">
             <Label htmlFor="mode-switch" className={playerMode === "performance" ? "text-primary" : "text-muted-foreground"}>
               Performance Mode
@@ -114,8 +192,9 @@ const BiometricsTab = () => {
               Recovery Mode
             </Label>
           </div>
+          
           <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="Time Range" />
             </SelectTrigger>
             <SelectContent>
@@ -125,23 +204,68 @@ const BiometricsTab = () => {
               <SelectItem value="season">Full Season</SelectItem>
             </SelectContent>
           </Select>
+          
+          <ToleranceSettingsDialog settings={tolerances} onSave={handleToleranceChange} />
         </div>
       </div>
       
       {selectedPlayer ? (
         <>
           <div className="bg-white shadow rounded-lg p-4 mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">{selectedPlayer.name}'s Biometric Data</h2>
-            {playerMode === "recovery" && (
-              <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
-                Recovery Mode Active
-              </span>
-            )}
-            {playerMode === "performance" && (
-              <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-sm font-medium">
-                Performance Tracking Active
-              </span>
-            )}
+            <div>
+              <h2 className="text-xl font-semibold">{selectedPlayer.name}'s Biometric Data</h2>
+              <div className="flex gap-2 items-center mt-1">
+                {playerMode === "recovery" && (
+                  <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
+                    Recovery Mode Active
+                  </span>
+                )}
+                {playerMode === "performance" && (
+                  <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-sm font-medium">
+                    Performance Tracking Active
+                  </span>
+                )}
+                <span className={cn(
+                  "px-3 py-1 rounded-full text-sm font-medium",
+                  sessionType === "match" 
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-blue-100 text-blue-800"
+                )}>
+                  {sessionType === "match" ? "Match" : "Training"}
+                </span>
+              </div>
+            </div>
+            
+            {/* Visual player tolerance status indicator */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">Tolerance Status:</span>
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "w-3 h-3 rounded-full",
+                  getStatusFromValue(currentValues.heartRate, tolerances.heartRate) === "critical" || 
+                  getStatusFromValue(currentValues.hydration, tolerances.hydration) === "critical" || 
+                  getStatusFromValue(currentValues.lacticAcid, tolerances.lacticAcid) === "critical"
+                    ? "bg-red-500" 
+                    : getStatusFromValue(currentValues.heartRate, tolerances.heartRate) === "warning" || 
+                      getStatusFromValue(currentValues.hydration, tolerances.hydration) === "warning" || 
+                      getStatusFromValue(currentValues.lacticAcid, tolerances.lacticAcid) === "warning"
+                      ? "bg-amber-500" 
+                      : "bg-green-500"
+                )}></div>
+                <span className="text-sm font-medium">
+                  {getStatusFromValue(currentValues.heartRate, tolerances.heartRate) === "critical" || 
+                   getStatusFromValue(currentValues.hydration, tolerances.hydration) === "critical" || 
+                   getStatusFromValue(currentValues.lacticAcid, tolerances.lacticAcid) === "critical"
+                    ? "Critical" 
+                    : getStatusFromValue(currentValues.heartRate, tolerances.heartRate) === "warning" || 
+                      getStatusFromValue(currentValues.hydration, tolerances.hydration) === "warning" || 
+                      getStatusFromValue(currentValues.lacticAcid, tolerances.lacticAcid) === "warning"
+                      ? "Warning" 
+                      : "Good"
+                  }
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -150,28 +274,40 @@ const BiometricsTab = () => {
               value={playerMode === "performance" ? "132 bpm" : "76 bpm"}
               icon={<HeartPulse className="h-5 w-5" />}
               change={playerMode === "performance" ? "+12%" : "-8%"}
-              status={playerMode === "performance" ? "normal" : "good"}
+              status={getStatusFromValue(currentValues.heartRate, tolerances.heartRate)}
+              toleranceMin={tolerances.heartRate.min}
+              toleranceMax={tolerances.heartRate.max}
+              numericValue={currentValues.heartRate}
             />
             <BiometricDetailsCard 
               title="Hydration"
               value={playerMode === "performance" ? "82%" : "96%"}
               icon={<Droplet className="h-5 w-5" />}
               change={playerMode === "performance" ? "-15%" : "+4%"}
-              status={playerMode === "performance" ? "warning" : "good"}
+              status={getStatusFromValue(currentValues.hydration, tolerances.hydration)}
+              toleranceMin={tolerances.hydration.min}
+              toleranceMax={tolerances.hydration.max}
+              numericValue={currentValues.hydration}
             />
             <BiometricDetailsCard 
               title="Lactic Acid"
               value={playerMode === "performance" ? "5.2 mmol/L" : "1.3 mmol/L"}
               icon={<Thermometer className="h-5 w-5" />}
               change={playerMode === "performance" ? "+120%" : "-40%"}
-              status={playerMode === "performance" ? "warning" : "good"}
+              status={getStatusFromValue(currentValues.lacticAcid, tolerances.lacticAcid)}
+              toleranceMin={tolerances.lacticAcid.min}
+              toleranceMax={tolerances.lacticAcid.max}
+              numericValue={currentValues.lacticAcid}
             />
             <BiometricDetailsCard 
               title="VO2 Max"
               value={playerMode === "performance" ? "52 ml/kg/min" : "48 ml/kg/min"}
               icon={<Wind className="h-5 w-5" />}
               change={playerMode === "performance" ? "+4%" : "-2%"}
-              status="good"
+              status={getStatusFromValue(currentValues.vo2Max, tolerances.vo2Max)}
+              toleranceMin={tolerances.vo2Max.min}
+              toleranceMax={tolerances.vo2Max.max}
+              numericValue={currentValues.vo2Max}
             />
           </div>
 
@@ -189,14 +325,14 @@ const BiometricsTab = () => {
                   data={heartRateData} 
                   color="#ef4444" 
                   unit="bpm"
-                  threshold={170}
+                  threshold={tolerances.heartRate.max}
                 />
                 <BiometricChart 
                   title="Hydration Level" 
                   data={hydrationData} 
                   color="#0ea5e9" 
                   unit="%"
-                  threshold={80}
+                  threshold={tolerances.hydration.min}
                   thresholdDirection="below"
                 />
                 <BiometricChart 
@@ -204,7 +340,7 @@ const BiometricsTab = () => {
                   data={lacticAcidData} 
                   color="#8b5cf6" 
                   unit="mmol/L"
-                  threshold={4}
+                  threshold={tolerances.lacticAcid.max}
                 />
                 <BiometricChart 
                   title="VO2 Max" 
@@ -217,7 +353,7 @@ const BiometricsTab = () => {
                   data={muscleFatigueData} 
                   color="#f59e0b" 
                   unit="%"
-                  threshold={70}
+                  threshold={tolerances.muscleFatigue.max}
                 />
               </div>
             </TabsContent>
@@ -399,6 +535,11 @@ const BiometricsTab = () => {
       )}
     </div>
   );
+};
+
+// Helper function for conditional class names
+const cn = (...classes: (string | boolean | undefined)[]) => {
+  return classes.filter(Boolean).join(' ');
 };
 
 export default BiometricsTab;
