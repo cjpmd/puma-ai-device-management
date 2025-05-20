@@ -12,6 +12,7 @@ import PlayerToleranceSettings from "./PlayerToleranceSettings";
 import TeamSummary from "./TeamSummary";
 import { HeartPulse, Droplet, Thermometer, Wind, Activity, Shield, Clock, Bluetooth } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { PlayerToleranceSettings as PlayerToleranceSettingsType } from "./PlayerToleranceSettings";
 
 interface Player {
   id: string;
@@ -29,14 +30,11 @@ interface ToleranceRange {
   max: number;
 }
 
-// Import this type from PlayerToleranceSettings instead of redefining
-import { PlayerToleranceSettings } from './PlayerToleranceSettings';
-
 interface ToleranceSettingsMap {
-  [playerId: string]: PlayerToleranceSettings;
+  [playerId: string]: PlayerToleranceSettingsType;
 }
 
-const defaultTolerances: PlayerToleranceSettings = {
+const defaultTolerances: PlayerToleranceSettingsType = {
   playerId: "global",
   heartRate: { min: 60, max: 180 },
   hydration: { min: 80, max: 100 },
@@ -62,7 +60,7 @@ const BiometricsTab = () => {
   ]);
   
   // Tolerance settings
-  const [globalTolerances, setGlobalTolerances] = useState<PlayerToleranceSettings>(defaultTolerances);
+  const [globalTolerances, setGlobalTolerances] = useState<PlayerToleranceSettingsType>(defaultTolerances);
   const [playerTolerances, setPlayerTolerances] = useState<ToleranceSettingsMap>({});
   
   useEffect(() => {
@@ -226,7 +224,7 @@ const BiometricsTab = () => {
     setPlayerMode(checked ? "recovery" : "performance");
   };
 
-  const handleToleranceChange = (newPlayerTolerances: ToleranceSettingsMap, newGlobalTolerances: PlayerToleranceSettings) => {
+  const handleToleranceChange = (newPlayerTolerances: ToleranceSettingsMap, newGlobalTolerances: PlayerToleranceSettingsType) => {
     setPlayerTolerances(newPlayerTolerances);
     setGlobalTolerances(newGlobalTolerances);
     
@@ -547,6 +545,7 @@ const BiometricsTab = () => {
                     />
                   </div>
                 </TabsContent>
+                
                 <TabsContent value="combined">
                   <div className="mt-4 grid grid-cols-1 gap-6">
                     <Card>
@@ -578,6 +577,7 @@ const BiometricsTab = () => {
                     </Card>
                   </div>
                 </TabsContent>
+                
                 {playerMode === "recovery" && (
                   <TabsContent value="recovery">
                     <div className="mt-4 space-y-4">
@@ -645,6 +645,7 @@ const BiometricsTab = () => {
                     </div>
                   </TabsContent>
                 )}
+                
                 {playerMode === "recovery" && (
                   <TabsContent value="smart-bandage">
                     <div className="mt-4 space-y-4">

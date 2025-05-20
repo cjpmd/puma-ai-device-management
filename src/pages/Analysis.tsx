@@ -163,7 +163,8 @@ const Analysis = () => {
       const query = supabase.from('sessions').select('*');
       
       if (activeSessionId) {
-        query.eq('id', activeSessionId);
+        // Convert activeSessionId to a number if it's being used in a numeric context
+        query.eq('id', parseInt(activeSessionId, 10));
       } else if (isLiveMode) {
         query.is('end_time', null);
       } else {
