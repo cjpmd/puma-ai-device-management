@@ -29,15 +29,8 @@ interface ToleranceRange {
   max: number;
 }
 
-export interface PlayerToleranceSettings {
-  playerId: string;
-  playerName?: string;
-  heartRate: ToleranceRange;
-  hydration: ToleranceRange;
-  lacticAcid: ToleranceRange;
-  vo2Max: ToleranceRange;
-  muscleFatigue: ToleranceRange;
-}
+// Import this type from PlayerToleranceSettings instead of redefining
+import { PlayerToleranceSettings } from './PlayerToleranceSettings';
 
 interface ToleranceSettingsMap {
   [playerId: string]: PlayerToleranceSettings;
@@ -522,14 +515,14 @@ const BiometricsTab = () => {
                       data={heartRateData} 
                       color="#ef4444" 
                       unit="bpm"
-                      threshold={tolerances.heartRate.max}
+                      threshold={currentTolerance.heartRate.max}
                     />
                     <BiometricChart 
                       title="Hydration Level" 
                       data={hydrationData} 
                       color="#0ea5e9" 
                       unit="%"
-                      threshold={tolerances.hydration.min}
+                      threshold={currentTolerance.hydration.min}
                       thresholdDirection="below"
                     />
                     <BiometricChart 
@@ -537,7 +530,7 @@ const BiometricsTab = () => {
                       data={lacticAcidData} 
                       color="#8b5cf6" 
                       unit="mmol/L"
-                      threshold={tolerances.lacticAcid.max}
+                      threshold={currentTolerance.lacticAcid.max}
                     />
                     <BiometricChart 
                       title="VO2 Max" 
@@ -550,7 +543,7 @@ const BiometricsTab = () => {
                       data={muscleFatigueData} 
                       color="#f59e0b" 
                       unit="%"
-                      threshold={tolerances.muscleFatigue.max}
+                      threshold={currentTolerance.muscleFatigue.max}
                     />
                   </div>
                 </TabsContent>
