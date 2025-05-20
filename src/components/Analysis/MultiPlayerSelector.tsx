@@ -8,6 +8,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList
 } from "@/components/ui/command";
 import {
   Popover,
@@ -133,31 +134,33 @@ const MultiPlayerSelector = ({
         <PopoverContent className="w-full p-0">
           <Command>
             <CommandInput placeholder="Search players..." />
-            <CommandEmpty>No player found.</CommandEmpty>
-            <CommandGroup>
-              {players.map((player) => (
-                <CommandItem
-                  key={player.id}
-                  value={player.name}
-                  onSelect={() => handleSelect(player.id)}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      selectedPlayerIds.includes(player.id) 
-                        ? "opacity-100" 
-                        : "opacity-0"
+            <CommandList>
+              <CommandEmpty>No player found.</CommandEmpty>
+              <CommandGroup>
+                {players.map((player) => (
+                  <CommandItem
+                    key={player.id}
+                    value={player.name}
+                    onSelect={() => handleSelect(player.id)}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        selectedPlayerIds.includes(player.id) 
+                          ? "opacity-100" 
+                          : "opacity-0"
+                      )}
+                    />
+                    <span>{player.name}</span>
+                    {player.position && (
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        {player.position}
+                      </span>
                     )}
-                  />
-                  <span>{player.name}</span>
-                  {player.position && (
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {player.position}
-                    </span>
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
