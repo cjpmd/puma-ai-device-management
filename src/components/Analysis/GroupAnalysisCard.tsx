@@ -57,7 +57,7 @@ const GroupAnalysisCard = ({ title, players, sessionId, isLiveMode = true }: Gro
     const metrics = ['Speed', 'Endurance', 'Technique', 'Accuracy', 'Power', 'Agility'];
     
     return metrics.map(metric => {
-      const result: any = { name: metric };
+      const result: Record<string, any> = { name: metric };
       
       players.forEach(player => {
         // Generate a random value for each player and metric
@@ -77,7 +77,6 @@ const GroupAnalysisCard = ({ title, players, sessionId, isLiveMode = true }: Gro
         .from('sensor_recordings')
         .select('*')
         .eq('training_session_id', sessionId)
-        .in('player_id', playerIds)
         .limit(200);
       
       if (error) throw error;
@@ -90,14 +89,14 @@ const GroupAnalysisCard = ({ title, players, sessionId, isLiveMode = true }: Gro
         const metrics = ['Speed', 'Endurance', 'Technique', 'Accuracy', 'Power', 'Agility'];
         
         const processedMetrics = metrics.map(metric => {
-          const result: any = { name: metric };
+          const result: Record<string, any> = { name: metric };
           
           players.forEach(player => {
-            // Get data for this specific player
-            const playerData = data.filter(item => item.player_id === player.id);
-            const dataFactor = playerData.length > 0 ? Math.min(playerData.length / 10, 1) : 0.5;
+            // Since sensor_recordings don't have player_id, we'll use the session data volume
+            // as a general influence factor for demonstration purposes
+            const dataFactor = data.length > 0 ? Math.min(data.length / 50, 1) : 0.5;
             
-            // Generate a semi-random value influenced by the data
+            // Generate a semi-random value influenced by the data volume
             result[player.name] = Math.floor(60 + Math.random() * 40 * dataFactor);
           });
           
