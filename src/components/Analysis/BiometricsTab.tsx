@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import PlayerSelector from "./PlayerSelector";
 import BiometricChart from "./BiometricChart";
 import BiometricDetailsCard from "./BiometricDetailsCard";
-import { HeartPulse, Droplet, Thermometer, Lungs, Activity, Shield, Clock } from "lucide-react";
+import { HeartPulse, Droplet, Thermometer, Wind, Activity, Shield, Clock } from "lucide-react";
 
 interface Player {
   id: string;
@@ -170,7 +169,7 @@ const BiometricsTab = () => {
             <BiometricDetailsCard 
               title="VO2 Max"
               value={playerMode === "performance" ? "52 ml/kg/min" : "48 ml/kg/min"}
-              icon={<Lungs className="h-5 w-5" />}
+              icon={<Wind className="h-5 w-5" />}
               change={playerMode === "performance" ? "+4%" : "-2%"}
               status="good"
             />
