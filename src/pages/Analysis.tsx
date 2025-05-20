@@ -26,6 +26,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Define an adapter type to bridge the gap between Supabase data and our application types
 interface SensorRecordingFromDB {
@@ -63,6 +70,8 @@ const Analysis = () => {
   const [performanceData, setPerformanceData] = useState([]);
   const [shotData, setShotData] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [availableSessions, setAvailableSessions] = useState<{id: string, date: string, type: string}[]>([]);
+  const [isLiveMode, setIsLiveMode] = useState(true);
   const { toast } = useToast();
   const location = useLocation();
   
@@ -78,6 +87,7 @@ const Analysis = () => {
   useEffect(() => {
     // Initial data fetch
     fetchAnalysisData();
+    fetchAvailableSessions();
 
     // Set up real-time subscription for sessions table
     const sessionsChannel = supabase
@@ -119,7 +129,31 @@ const Analysis = () => {
       supabase.removeChannel(sensorRecordingsChannel);
       supabase.removeChannel(objectDetectionsChannel);
     };
-  }, [activeSessionId]);
+  }, [activeSessionId, isLiveMode]);
+
+  const fetchAvailableSessions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, start_time, end_time, session_type')
+        .order('start_time', { ascending: false })
+        .limit(10);
+      
+      if (error) throw error;
+      
+      if (data) {
+        const formattedSessions = data.map(session => ({
+          id: session.id.toString(),
+          date: new Date(session.start_time).toLocaleDateString(),
+          type: session.session_type
+        }));
+        
+        setAvailableSessions(formattedSessions);
+      }
+    } catch (error) {
+      console.error('Error fetching available sessions:', error);
+    }
+  };
 
   const fetchAnalysisData = async () => {
     try {
@@ -130,8 +164,10 @@ const Analysis = () => {
       
       if (activeSessionId) {
         query.eq('id', activeSessionId);
-      } else {
+      } else if (isLiveMode) {
         query.is('end_time', null);
+      } else {
+        query.order('start_time', { ascending: false }).limit(1);
       }
       
       const { data: sessionData, error: sessionError } = await query;
@@ -313,6 +349,20 @@ const Analysis = () => {
     });
   };
 
+  const toggleLiveMode = (value: boolean) => {
+    setIsLiveMode(value);
+    if (value) {
+      // When switching to live mode, clear active session ID to get latest active session
+      setActiveSessionId(null);
+    }
+    // When switching to historical mode, we'll keep the current session ID if there is one
+  };
+
+  const handleSessionSelect = (sessionId: string) => {
+    setActiveSessionId(sessionId);
+    setIsLiveMode(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
@@ -326,6 +376,40 @@ const Analysis = () => {
             )}
           </div>
           <div className="flex gap-4">
+            <div className="flex items-center gap-2">
+              <Select
+                value={isLiveMode ? "live" : "historical"}
+                onValueChange={(v) => toggleLiveMode(v === "live")}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Session Mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="live">Live Session</SelectItem>
+                  <SelectItem value="historical">Historical Data</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {!isLiveMode && (
+                <Select
+                  value={activeSessionId || ""}
+                  onValueChange={handleSessionSelect}
+                  disabled={availableSessions.length === 0}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select Session" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSessions.map((session) => (
+                      <SelectItem key={session.id} value={session.id}>
+                        {session.date} - {session.type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

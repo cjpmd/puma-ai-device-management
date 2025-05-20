@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
 
 interface BiometricDetailsCardProps {
   title: string;
@@ -13,6 +14,7 @@ interface BiometricDetailsCardProps {
   toleranceMin?: number;
   toleranceMax?: number;
   numericValue?: number;
+  playerId?: string;
 }
 
 const BiometricDetailsCard = ({
@@ -23,7 +25,8 @@ const BiometricDetailsCard = ({
   status = "normal",
   toleranceMin,
   toleranceMax,
-  numericValue
+  numericValue,
+  playerId
 }: BiometricDetailsCardProps) => {
   const isPositiveChange = change.startsWith("+");
   
@@ -46,9 +49,9 @@ const BiometricDetailsCard = ({
   const calculateProgress = () => {
     if (numericValue === undefined || toleranceMin === undefined || toleranceMax === undefined) {
       // Default progress values based on status
-      return status === "good" ? '90%' : 
-             status === "normal" ? '70%' : 
-             status === "warning" ? '40%' : '20%';
+      return status === "good" ? 90 : 
+             status === "normal" ? 70 : 
+             status === "warning" ? 40 : 20;
     }
     
     // Calculate progress as percentage between min and max
@@ -56,7 +59,7 @@ const BiometricDetailsCard = ({
     const position = numericValue - toleranceMin;
     const percentage = Math.max(0, Math.min(100, (position / range) * 100));
     
-    return `${percentage}%`;
+    return percentage;
   };
 
   // Determine tolerance status text
@@ -128,20 +131,18 @@ const BiometricDetailsCard = ({
           </TooltipProvider>
         </div>
         <div className="mt-4">
-          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-            <div 
-              className={cn(
-                "h-full rounded-full",
-                {
-                  "bg-green-500": status === "good",
-                  "bg-blue-500": status === "normal",
-                  "bg-amber-500": status === "warning",
-                  "bg-red-500": status === "critical"
-                }
-              )}
-              style={{ width: calculateProgress() }}
-            />
-          </div>
+          <Progress 
+            value={calculateProgress()} 
+            className="h-2 w-full" 
+            indicatorClassName={cn(
+              {
+                "bg-green-500": status === "good",
+                "bg-blue-500": status === "normal",
+                "bg-amber-500": status === "warning",
+                "bg-red-500": status === "critical"
+              }
+            )} 
+          />
         </div>
       </CardContent>
     </Card>
