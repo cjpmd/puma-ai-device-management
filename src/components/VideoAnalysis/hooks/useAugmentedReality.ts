@@ -33,11 +33,10 @@ export const useAugmentedReality = () => {
         setIsProcessing(true);
         
         // Load the object detection model from Hugging Face
-        // Use "wasm" as the device parameter instead of "cpu"
         const detector = await pipeline(
           'object-detection',
           'Xenova/detr-resnet-50',
-          { device: 'wasm' } // Changed from 'cpu' to 'wasm'
+          { device: 'wasm' } 
         );
         
         detectorRef.current = detector;
@@ -79,8 +78,30 @@ export const useAugmentedReality = () => {
     try {
       setIsProcessing(true);
       
-      // Run object detection on the frame
-      const results = await detectorRef.current(frame);
+      // Convert canvas element to base64 URL for Hugging Face pipeline
+      let imageData;
+      
+      if (frame instanceof HTMLCanvasElement) {
+        // For canvas elements, get the data URL
+        imageData = frame.toDataURL('image/jpeg');
+      } else if (frame instanceof ImageBitmap) {
+        // For ImageBitmap, we need to draw it to a temporary canvas first
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = frame.width;
+        tempCanvas.height = frame.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        if (tempCtx) {
+          tempCtx.drawImage(frame, 0, 0);
+          imageData = tempCanvas.toDataURL('image/jpeg');
+        } else {
+          throw new Error("Could not create temporary context for ImageBitmap");
+        }
+      } else {
+        throw new Error("Unsupported frame type");
+      }
+      
+      // Run object detection on the image data
+      const results = await detectorRef.current(imageData);
       
       // Filter for person detections and format as DetectedPlayer objects
       const playerDetections = results

@@ -122,13 +122,20 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
         videoRef.current.srcObject = stream;
         mediaStreamRef.current = stream;
         
-        toast({
-          title: "Camera Active",
-          description: "AR tracking has started",
-        });
-        
-        // Start the processing loop
-        startProcessingLoop();
+        // Wait for metadata to load before proceeding
+        videoRef.current.onloadedmetadata = () => {
+          if (videoRef.current) {
+            videoRef.current.play();
+            
+            toast({
+              title: "Camera Active",
+              description: "AR tracking has started",
+            });
+            
+            // Start the processing loop after video is ready
+            startProcessingLoop();
+          }
+        };
       }
     } catch (err) {
       console.error("Error starting camera:", err);
@@ -169,18 +176,26 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
       const ctx = canvasRef.current.getContext('2d');
       
       if (ctx) {
-        // Draw the current video frame to the canvas
-        ctx.drawImage(videoRef.current, 0, 0, width, height);
-        
-        // Process the frame to detect players every few frames
-        // (to avoid overloading the browser)
-        if (Math.random() < 0.1) { // Process ~10% of frames
-          try {
-            // Create a bitmap from the canvas for detection
-            const bitmap = await createImageBitmap(canvasRef.current);
-            detectPlayers(bitmap);
-          } catch (err) {
-            console.error("Error processing frame:", err);
+        // Make sure video is ready and has dimensions
+        if (videoRef.current.videoWidth && videoRef.current.videoHeight) {
+          // Clear the canvas and draw the current video frame
+          ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+          ctx.drawImage(
+            videoRef.current, 
+            0, 0, 
+            canvasRef.current.width, 
+            canvasRef.current.height
+          );
+          
+          // Process the frame to detect players every few frames
+          // (to avoid overloading the browser)
+          if (Math.random() < 0.1) { // Process ~10% of frames
+            try {
+              // Process the current canvas directly
+              await detectPlayers(canvasRef.current);
+            } catch (err) {
+              console.error("Error processing frame:", err);
+            }
           }
         }
       }
@@ -196,6 +211,62 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
   // Toggle the camera on/off
   const toggleCamera = () => {
     setIsActive(prev => !prev);
+  };
+
+  // Request Bluetooth devices available on macOS
+  const requestBluetoothDevices = async () => {
+    if (!navigator.bluetooth) {
+      toast({
+        title: "Bluetooth Not Available",
+        description: "Web Bluetooth API is not supported on this browser or device",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      toast({
+        title: "Bluetooth",
+        description: "Requesting Bluetooth devices...",
+      });
+
+      // Request Bluetooth device
+      const device = await navigator.bluetooth.requestDevice({
+        // Filter for devices that support heart rate service or generic health services 
+        filters: [
+          { services: ['heart_rate'] },
+          { services: ['health_thermometer'] },
+          { namePrefix: 'Sensor' },
+          { namePrefix: 'Tracker' }
+        ],
+        optionalServices: ['battery_service', 'device_information']
+      });
+
+      toast({
+        title: "Bluetooth Device Selected",
+        description: `Connected to: ${device.name || "Unknown device"}`,
+      });
+
+      // Connect to the device
+      const server = await device.gatt?.connect();
+      
+      if (server) {
+        toast({
+          title: "Bluetooth Connected",
+          description: "Successfully connected to GATT server",
+        });
+        
+        // Further connection logic would go here in a real app
+      }
+    } catch (error) {
+      console.error('Bluetooth error:', error);
+      
+      toast({
+        title: "Bluetooth Error",
+        description: error instanceof Error ? error.message : "Failed to connect to Bluetooth device",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -325,6 +396,21 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
             ))}
           </div>
         )}
+
+        {/* Bluetooth connection section for MacOS */}
+        <div className="mt-6 p-4 border border-slate-200 rounded-lg bg-slate-50">
+          <h3 className="text-lg font-medium mb-2">Connect Bluetooth Devices</h3>
+          <p className="text-sm text-slate-600 mb-4">
+            Connect to Bluetooth sensors and tracking devices. Works on MacOS and supported mobile devices.
+          </p>
+          <Button onClick={requestBluetoothDevices}>
+            Connect Bluetooth Device
+          </Button>
+          <p className="text-xs text-slate-500 mt-3">
+            Note: Web Bluetooth API requires HTTPS and is supported on Chrome, Edge and other Chromium-based browsers.
+            Not all browsers support this feature.
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
