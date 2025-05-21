@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { 
   Card, 
@@ -47,8 +48,10 @@ import {
   Trash, 
   Usb, 
   Settings, 
-  RefreshCw 
+  RefreshCw, 
+  X
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useDeviceManagement, Device } from './hooks/useDeviceManagement';
 
 const DeviceManagement = () => {
@@ -56,12 +59,15 @@ const DeviceManagement = () => {
     devices,
     foundDevices,
     isScanning,
+    isBluetoothAvailable,
+    biometricData,
     fetchDevices,
     startBluetoothScan,
     scanForUSBDevices,
     addDevice,
     removeDevice,
     connectToDevice,
+    disconnectDevice,
     toggleDeviceActive
   } = useDeviceManagement();
 
@@ -98,6 +104,15 @@ const DeviceManagement = () => {
           <Settings className="mr-2 h-5 w-5" /> Device Management
         </CardTitle>
         <CardDescription>Add, remove, and manage tracking devices</CardDescription>
+        
+        {!isBluetoothAvailable && (
+          <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm text-amber-800 flex items-center">
+              <BluetoothOff className="h-4 w-4 mr-2 text-amber-600" />
+              Bluetooth is not available in this browser or device. The Web Bluetooth API requires Chrome, Edge, or other Chromium-based browsers.
+            </p>
+          </div>
+        )}
       </CardHeader>
       
       <CardContent>
@@ -118,6 +133,7 @@ const DeviceManagement = () => {
                     setScanType('bluetooth');
                     setShowScanDialog(true);
                   }}
+                  disabled={!isBluetoothAvailable}
                 >
                   <Bluetooth className="mr-2 h-4 w-4" />
                   Find Bluetooth Devices
@@ -151,65 +167,107 @@ const DeviceManagement = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Last Connected</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {devices.map((device) => (
-                    <TableRow key={device.id}>
-                      <TableCell className="font-medium">{device.device_name}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center">
-                          {device.status === 'connected' ? (
-                            <>
-                              <BluetoothConnected className="h-4 w-4 text-green-500 mr-2" />
-                              <span className="text-green-500">Connected</span>
-                            </>
-                          ) : device.status === 'disconnected' ? (
-                            <>
-                              <Bluetooth className="h-4 w-4 text-amber-500 mr-2" />
-                              <span className="text-amber-500">Disconnected</span>
-                            </>
-                          ) : (
-                            <>
-                              <BluetoothOff className="h-4 w-4 text-gray-400 mr-2" />
-                              <span className="text-gray-400">Inactive</span>
-                            </>
+                  {devices.map((device) => {
+                    const deviceBiometrics = device.bluetooth_id ? biometricData[device.bluetooth_id] : undefined;
+                    
+                    return (
+                      <TableRow key={device.id}>
+                        <TableCell className="font-medium">{device.device_name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {device.device_type === 'heart_rate_monitor' ? 'Heart Rate Monitor' :
+                             device.device_type === 'thermometer' ? 'Thermometer' :
+                             device.connection_type === 'bluetooth' ? 'Bluetooth Device' :
+                             device.connection_type === 'usb' ? 'USB Device' : 
+                             'Unknown'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center">
+                            {device.status === 'connected' ? (
+                              <>
+                                <BluetoothConnected className="h-4 w-4 text-green-500 mr-2" />
+                                <span className="text-green-500">Connected</span>
+                              </>
+                            ) : device.status === 'disconnected' ? (
+                              <>
+                                <Bluetooth className="h-4 w-4 text-amber-500 mr-2" />
+                                <span className="text-amber-500">Disconnected</span>
+                              </>
+                            ) : (
+                              <>
+                                <BluetoothOff className="h-4 w-4 text-gray-400 mr-2" />
+                                <span className="text-gray-400">Inactive</span>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>{device.last_connected ? new Date(device.last_connected).toLocaleString() : 'Never'}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {device.status !== 'connected' ? (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => connectToDevice(device)}
+                              >
+                                <Bluetooth className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => disconnectDevice(device)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                            
+                            <Button 
+                              variant={device.status === 'connected' ? "destructive" : "default"}
+                              size="sm"
+                              onClick={() => toggleDeviceActive(device.id, device.status !== 'connected')}
+                            >
+                              {device.status === 'connected' ? 'Deactivate' : 'Activate'}
+                            </Button>
+                            
+                            <Button 
+                              variant="destructive" 
+                              size="sm"
+                              onClick={() => setDeviceToDelete(device)}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          
+                          {/* Show biometric data if connected */}
+                          {device.status === 'connected' && deviceBiometrics && (
+                            <div className="mt-2 p-2 bg-slate-50 rounded text-xs">
+                              {deviceBiometrics.heartRate && (
+                                <div className="flex items-center justify-between">
+                                  <span>Heart Rate:</span>
+                                  <span className="font-medium">{deviceBiometrics.heartRate} bpm</span>
+                                </div>
+                              )}
+                              {deviceBiometrics.temperature && (
+                                <div className="flex items-center justify-between">
+                                  <span>Temperature:</span>
+                                  <span className="font-medium">{deviceBiometrics.temperature.toFixed(1)}°C</span>
+                                </div>
+                              )}
+                            </div>
                           )}
-                        </div>
-                      </TableCell>
-                      <TableCell>{device.last_connected || 'Never'}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => connectToDevice(device)}
-                          >
-                            <Bluetooth className="h-4 w-4" />
-                          </Button>
-                          
-                          <Button 
-                            variant={device.status === 'connected' ? "destructive" : "default"}
-                            size="sm"
-                            onClick={() => toggleDeviceActive(device.id, device.status !== 'connected')}
-                          >
-                            {device.status === 'connected' ? 'Deactivate' : 'Activate'}
-                          </Button>
-                          
-                          <Button 
-                            variant="destructive" 
-                            size="sm"
-                            onClick={() => setDeviceToDelete(device)}
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             ) : (
@@ -220,7 +278,7 @@ const DeviceManagement = () => {
                 <Button onClick={() => {
                   setScanType('bluetooth');
                   setShowScanDialog(true);
-                }}>
+                }} disabled={!isBluetoothAvailable}>
                   <Search className="mr-2 h-4 w-4" />
                   Scan for Devices
                 </Button>
@@ -258,6 +316,7 @@ const DeviceManagement = () => {
                       setScanType('bluetooth');
                       setShowScanDialog(true);
                     }}
+                    disabled={!isBluetoothAvailable}
                   >
                     <Bluetooth className="mr-2 h-4 w-4" />
                     Scan Bluetooth Devices
@@ -299,7 +358,7 @@ const DeviceManagement = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Device Name</TableHead>
-                      <TableHead>ID</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Action</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -307,7 +366,13 @@ const DeviceManagement = () => {
                     {foundDevices.map((device, index) => (
                       <TableRow key={index}>
                         <TableCell>{device.device_name}</TableCell>
-                        <TableCell className="text-xs">{device.device_id}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {device.device_type === 'heart_rate_monitor' ? 'Heart Rate Monitor' : 
+                             device.device_type === 'thermometer' ? 'Thermometer' : 
+                             'Bluetooth Device'}
+                          </Badge>
+                        </TableCell>
                         <TableCell>
                           <Button 
                             size="sm"
@@ -331,7 +396,7 @@ const DeviceManagement = () => {
               <div className="mt-4 flex justify-center">
                 <Button
                   onClick={startScan}
-                  disabled={isScanning}
+                  disabled={isScanning || (scanType === 'bluetooth' && !isBluetoothAvailable)}
                 >
                   {isScanning ? (
                     <>

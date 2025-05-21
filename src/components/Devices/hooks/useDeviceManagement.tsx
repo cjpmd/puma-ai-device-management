@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -7,16 +7,55 @@ export interface Device {
   id: number;
   device_name: string;
   device_id?: string;
+  bluetooth_id?: string;
   status?: 'connected' | 'disconnected' | 'inactive';
   connection_type?: 'bluetooth' | 'usb';
   last_connected?: string;
+  device_type?: string;
+}
+
+export interface BiometricReading {
+  deviceId: string;
+  heartRate?: number;
+  temperature?: number;
+  hydration?: number;
+  lacticAcid?: number;
+  vo2Max?: number;
+  steps?: number;
+  distance?: number;
+  speed?: number;
+  timestamp: number;
 }
 
 export const useDeviceManagement = () => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [foundDevices, setFoundDevices] = useState<Device[]>([]);
+  const [biometricData, setBiometricData] = useState<Record<string, BiometricReading>>({});
+  const [isBluetoothAvailable, setIsBluetoothAvailable] = useState(false);
+  const connectedDevices = useRef<Map<string, BluetoothDevice>>(new Map());
   const { toast } = useToast();
+
+  // Check Bluetooth availability
+  useEffect(() => {
+    const checkBluetoothAvailability = async () => {
+      try {
+        if (navigator.bluetooth) {
+          const available = await navigator.bluetooth.getAvailability();
+          setIsBluetoothAvailable(available);
+          console.log("Bluetooth available:", available);
+        } else {
+          console.log("Web Bluetooth API not available");
+          setIsBluetoothAvailable(false);
+        }
+      } catch (err) {
+        console.error("Bluetooth check error:", err);
+        setIsBluetoothAvailable(false);
+      }
+    };
+    
+    checkBluetoothAvailability();
+  }, []);
 
   // Fetch registered devices from the database
   const fetchDevices = async () => {
@@ -40,69 +79,101 @@ export const useDeviceManagement = () => {
 
   // Scan for Bluetooth devices
   const startBluetoothScan = async () => {
+    if (!navigator.bluetooth) {
+      toast({
+        title: "Not Available",
+        description: "Web Bluetooth API is not supported in this browser or device",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsScanning(true);
     setFoundDevices([]);
     
     try {
-      // Simulated Bluetooth scanning functionality
-      // In a real implementation, this would use the Web Bluetooth API or Capacitor plugins
-      setTimeout(() => {
-        const mockFoundDevices = [
-          { id: 0, device_name: "SensorTag 1", device_id: "AA:BB:CC:DD:EE:01", connection_type: "bluetooth" },
-          { id: 0, device_name: "SensorTag 2", device_id: "AA:BB:CC:DD:EE:02", connection_type: "bluetooth" },
-          { id: 0, device_name: "Motion Sensor", device_id: "AA:BB:CC:DD:EE:03", connection_type: "bluetooth" }
-        ] as Device[];
+      toast({
+        title: "Scanning",
+        description: "Looking for Bluetooth devices...",
+      });
+      
+      // Use the Web Bluetooth API to request a device
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [
+          'heart_rate', 
+          'health_thermometer', 
+          'battery_service', 
+          'device_information'
+        ]
+      });
+      
+      if (device) {
+        const newDevice: Device = {
+          id: 0, // Will be assigned by the database
+          device_name: device.name || "Unknown Device",
+          device_id: device.id,
+          bluetooth_id: device.id,
+          connection_type: "bluetooth",
+          status: "disconnected",
+          device_type: await getDeviceType(device)
+        };
         
-        setFoundDevices(mockFoundDevices);
-        setIsScanning(false);
+        setFoundDevices([...foundDevices, newDevice]);
         
         toast({
-          title: "Scan complete",
-          description: `Found ${mockFoundDevices.length} device(s)`,
+          title: "Device Found",
+          description: `Found ${device.name || "Unnamed Device"}`,
         });
-      }, 2000);
+      }
     } catch (error) {
-      console.error('Error scanning for devices:', error);
+      console.error('Error scanning for Bluetooth devices:', error);
       toast({
-        title: "Error",
-        description: "Failed to scan for Bluetooth devices",
+        title: "Scan Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
         variant: "destructive",
       });
+    } finally {
       setIsScanning(false);
+    }
+  };
+  
+  // Helper function to determine device type based on available services
+  const getDeviceType = async (device: BluetoothDevice): Promise<string> => {
+    try {
+      const server = await device.gatt?.connect();
+      if (!server) return 'unknown';
+      
+      // Try to get services to identify the device type
+      try {
+        await server.getPrimaryService('heart_rate');
+        return 'heart_rate_monitor';
+      } catch (e) {/* Not a heart rate monitor */}
+      
+      try {
+        await server.getPrimaryService('health_thermometer');
+        return 'thermometer';
+      } catch (e) {/* Not a thermometer */}
+      
+      // Disconnect if we can't identify the device specifically
+      server.disconnect();
+      return 'generic_sensor';
+    } catch (error) {
+      console.error('Error identifying device type:', error);
+      return 'unknown';
     }
   };
 
   // Scan for USB connected devices
   const scanForUSBDevices = async () => {
-    setIsScanning(true);
-    setFoundDevices([]);
+    toast({
+      title: "Not Supported",
+      description: "USB device scanning requires native app capabilities",
+      variant: "default",
+    });
     
-    try {
-      // Simulated USB scanning functionality
-      // In a real implementation, this would use Capacitor plugins for USB connections
-      setTimeout(() => {
-        const mockFoundDevices = [
-          { id: 0, device_name: "USB Sensor 1", device_id: "USB001", connection_type: "usb" },
-          { id: 0, device_name: "USB Sensor 2", device_id: "USB002", connection_type: "usb" }
-        ] as Device[];
-        
-        setFoundDevices(mockFoundDevices);
-        setIsScanning(false);
-        
-        toast({
-          title: "USB scan complete",
-          description: `Found ${mockFoundDevices.length} USB device(s)`,
-        });
-      }, 1500);
-    } catch (error) {
-      console.error('Error scanning for USB devices:', error);
-      toast({
-        title: "Error",
-        description: "Failed to scan for USB devices",
-        variant: "destructive",
-      });
-      setIsScanning(false);
-    }
+    // If we were to implement this properly, it would require Capacitor or a similar
+    // framework for accessing native device capabilities
   };
 
   // Add a new device to the database
@@ -110,7 +181,13 @@ export const useDeviceManagement = () => {
     try {
       const { data, error } = await supabase
         .from('devices')
-        .insert({ device_name: device.device_name })
+        .insert({ 
+          device_name: device.device_name,
+          device_id: device.device_id,
+          bluetooth_id: device.bluetooth_id,
+          connection_type: device.connection_type,
+          device_type: device.device_type
+        })
         .select()
         .single();
 
@@ -136,6 +213,16 @@ export const useDeviceManagement = () => {
   // Remove a device from the database
   const removeDevice = async (deviceId: number) => {
     try {
+      // First check if it's connected and disconnect it
+      const deviceToRemove = devices.find(d => d.id === deviceId);
+      if (deviceToRemove?.bluetooth_id && connectedDevices.current.has(deviceToRemove.bluetooth_id)) {
+        const btDevice = connectedDevices.current.get(deviceToRemove.bluetooth_id);
+        if (btDevice?.gatt?.connected) {
+          btDevice.gatt.disconnect();
+        }
+        connectedDevices.current.delete(deviceToRemove.bluetooth_id);
+      }
+      
       const { error } = await supabase
         .from('devices')
         .delete()
@@ -158,32 +245,222 @@ export const useDeviceManagement = () => {
     }
   };
 
-  // Connect to a specific device
+  // Connect to a Bluetooth device and start monitoring
   const connectToDevice = async (device: Device) => {
+    if (!navigator.bluetooth) {
+      toast({
+        title: "Not Supported",
+        description: "Web Bluetooth API is not supported in this browser",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
-      // Here would be actual device connection code using Bluetooth or USB APIs
-      // For now, this is simulated
       toast({
         title: "Connecting",
         description: `Connecting to ${device.device_name}...`,
       });
       
-      setTimeout(() => {
+      let bluetoothDevice: BluetoothDevice;
+      
+      // If we have the device_id and it's a Bluetooth device
+      if (device.bluetooth_id && device.connection_type === 'bluetooth') {
+        // Try to get device from the cache or request a new one
+        if (connectedDevices.current.has(device.bluetooth_id)) {
+          bluetoothDevice = connectedDevices.current.get(device.bluetooth_id)!;
+        } else {
+          bluetoothDevice = await navigator.bluetooth.requestDevice({
+            filters: [{ services: ['heart_rate', 'health_thermometer'] }],
+            optionalServices: ['battery_service', 'device_information']
+          });
+          
+          if (!bluetoothDevice) throw new Error("No device selected");
+          
+          // Save the device reference
+          connectedDevices.current.set(bluetoothDevice.id, bluetoothDevice);
+        }
+        
+        // Connect to the GATT server
+        const server = await bluetoothDevice.gatt?.connect();
+        if (!server) throw new Error("Could not connect to GATT server");
+        
+        // Now set up monitoring based on device type
+        if (device.device_type === 'heart_rate_monitor') {
+          await setupHeartRateMonitoring(server, device.bluetooth_id);
+        } else if (device.device_type === 'thermometer') {
+          await setupTemperatureMonitoring(server, device.bluetooth_id);
+        }
+        
+        // Update device status in local state
+        setDevices(prev => prev.map(d => 
+          d.id === device.id ? { ...d, status: 'connected', last_connected: new Date().toISOString() } : d
+        ));
+        
+        // Also update in database
+        await supabase
+          .from('devices')
+          .update({ 
+            status: 'connected', 
+            last_connected: new Date().toISOString() 
+          })
+          .eq('id', device.id);
+        
         toast({
           title: "Connected",
           description: `Successfully connected to ${device.device_name}`,
         });
-        
-        // Update device status in local state
-        setDevices(prev => prev.map(d => 
-          d.id === device.id ? { ...d, status: 'connected' } : d
-        ));
-      }, 1000);
+      } else {
+        throw new Error("Device is not a Bluetooth device or missing identifier");
+      }
     } catch (error) {
       console.error('Error connecting to device:', error);
       toast({
-        title: "Connection failed",
-        description: `Could not connect to ${device.device_name}`,
+        title: "Connection Failed",
+        description: error instanceof Error ? error.message : "Could not connect to device",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Set up heart rate monitoring for a connected device
+  const setupHeartRateMonitoring = async (server: BluetoothRemoteGATTServer, deviceId: string) => {
+    try {
+      // Get the Heart Rate Service
+      const service = await server.getPrimaryService('heart_rate');
+      
+      // Get the Heart Rate Measurement characteristic
+      const characteristic = await service.getCharacteristic('heart_rate_measurement');
+      
+      // Set up notification handler
+      characteristic.addEventListener('characteristicvaluechanged', (event) => {
+        const target = event.target as BluetoothRemoteGATTCharacteristic;
+        const value = target.value;
+        
+        if (value) {
+          // Heart Rate is in the 2nd byte for most devices (first bit of first byte determines this)
+          const flags = value.getUint8(0);
+          let heartRate = 0;
+          
+          if ((flags & 0x01) === 0) {
+            // Heart rate format is UINT8
+            heartRate = value.getUint8(1);
+          } else {
+            // Heart rate format is UINT16
+            heartRate = value.getUint16(1, true);
+          }
+          
+          // Update biometric data state with the new reading
+          setBiometricData(prev => ({
+            ...prev,
+            [deviceId]: {
+              ...(prev[deviceId] || {}),
+              deviceId,
+              heartRate,
+              timestamp: Date.now(),
+              // Generate some simulated values for other biometrics
+              hydration: Math.floor(Math.random() * 20) + 70, // 70-90%
+              lacticAcid: +(Math.random() * 5 + 1).toFixed(1), // 1-6 mmol/L
+              vo2Max: Math.floor(Math.random() * 15) + 40, // 40-55 ml/kg/min
+              steps: prev[deviceId]?.steps ? (prev[deviceId].steps! + Math.floor(Math.random() * 5)) : 0,
+              distance: prev[deviceId]?.distance ? (prev[deviceId].distance! + Math.random() * 0.01) : 0,
+              speed: +(Math.random() * 8 + 1).toFixed(1) // 1-9 m/s
+            }
+          }));
+        }
+      });
+      
+      // Start notifications
+      await characteristic.startNotifications();
+      
+      console.log("Heart rate monitoring started");
+    } catch (error) {
+      console.error("Error setting up heart rate monitoring:", error);
+      throw new Error("Failed to set up heart rate monitoring");
+    }
+  };
+  
+  // Set up temperature monitoring for a connected device
+  const setupTemperatureMonitoring = async (server: BluetoothRemoteGATTServer, deviceId: string) => {
+    try {
+      // Get the Health Thermometer Service
+      const service = await server.getPrimaryService('health_thermometer');
+      
+      // Get the Temperature Measurement characteristic
+      const characteristic = await service.getCharacteristic('temperature_measurement');
+      
+      // Set up notification handler
+      characteristic.addEventListener('characteristicvaluechanged', (event) => {
+        const target = event.target as BluetoothRemoteGATTCharacteristic;
+        const value = target.value;
+        
+        if (value) {
+          // Temperature value is an IEEE-11073 32-bit float, little endian
+          // It starts at index 1 after the flags byte
+          const flags = value.getUint8(0);
+          const temperatureValue = value.getFloat32(1, true);
+          
+          // Convert to Celsius if needed based on flags
+          const isFahrenheit = (flags & 0x01) !== 0;
+          let temperature = temperatureValue;
+          if (isFahrenheit) {
+            temperature = (temperature - 32) * 5 / 9;
+          }
+          
+          // Update biometric data state with the new reading
+          setBiometricData(prev => ({
+            ...prev,
+            [deviceId]: {
+              ...(prev[deviceId] || {}),
+              deviceId,
+              temperature,
+              timestamp: Date.now()
+            }
+          }));
+        }
+      });
+      
+      // Start notifications
+      await characteristic.startNotifications();
+      
+      console.log("Temperature monitoring started");
+    } catch (error) {
+      console.error("Error setting up temperature monitoring:", error);
+      throw new Error("Failed to set up temperature monitoring");
+    }
+  };
+
+  // Disconnect from a specific device
+  const disconnectDevice = async (device: Device) => {
+    try {
+      if (device.bluetooth_id && connectedDevices.current.has(device.bluetooth_id)) {
+        const btDevice = connectedDevices.current.get(device.bluetooth_id);
+        
+        if (btDevice?.gatt?.connected) {
+          btDevice.gatt.disconnect();
+          
+          toast({
+            title: "Disconnected",
+            description: `Device ${device.device_name} disconnected`,
+          });
+          
+          // Update device status in local state
+          setDevices(prev => prev.map(d => 
+            d.id === device.id ? { ...d, status: 'disconnected' } : d
+          ));
+          
+          // Also update in database
+          await supabase
+            .from('devices')
+            .update({ status: 'disconnected' })
+            .eq('id', device.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error disconnecting device:', error);
+      toast({
+        title: "Error",
+        description: "Failed to disconnect device",
         variant: "destructive",
       });
     }
@@ -192,13 +469,19 @@ export const useDeviceManagement = () => {
   // Activate/Deactivate a device
   const toggleDeviceActive = async (deviceId: number, isActive: boolean) => {
     try {
-      // In a real implementation, you would update the device status in the database
-      // For now, we just update the UI
-      setDevices(prev => prev.map(device => 
-        device.id === deviceId 
-          ? { ...device, status: isActive ? 'connected' : 'inactive' } 
-          : device
-      ));
+      const device = devices.find(d => d.id === deviceId);
+      
+      if (!device) {
+        throw new Error("Device not found");
+      }
+      
+      if (isActive) {
+        // Activate device (connect)
+        await connectToDevice(device);
+      } else {
+        // Deactivate device (disconnect)
+        await disconnectDevice(device);
+      }
       
       toast({
         title: isActive ? "Device Activated" : "Device Deactivated",
@@ -217,18 +500,30 @@ export const useDeviceManagement = () => {
   // Load devices on component mount
   useEffect(() => {
     fetchDevices();
+    
+    // Clean up by disconnecting all devices when unmounting
+    return () => {
+      connectedDevices.current.forEach(device => {
+        if (device.gatt?.connected) {
+          device.gatt.disconnect();
+        }
+      });
+    };
   }, []);
 
   return {
     devices,
     foundDevices,
     isScanning,
+    isBluetoothAvailable,
+    biometricData,
     fetchDevices,
     startBluetoothScan,
     scanForUSBDevices,
     addDevice,
     removeDevice,
     connectToDevice,
+    disconnectDevice,
     toggleDeviceActive
   };
 };

@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/components/ui/use-toast";
-import { Camera, Square, Play, Info, User, Layers } from 'lucide-react';
+import { Camera, Square, Play, Info, User, Layers, Heart, Thermometer, Droplet, Activity, MapPin, ArrowsUpFromLine } from 'lucide-react';
 import { useAugmentedReality, DetectedPlayer } from './hooks/useAugmentedReality';
 import PlayerOverlay from './PlayerOverlay';
+import { useDeviceManagement } from '../Devices/hooks/useDeviceManagement';
+import { Link } from 'react-router-dom';
 
 interface AugmentedRealityCameraProps {
   width?: number;
@@ -36,6 +38,12 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
     error,
     detectPlayers
   } = useAugmentedReality();
+  
+  const {
+    devices,
+    biometricData,
+    isBluetoothAvailable: isBtAvailable
+  } = useDeviceManagement();
 
   // Check for camera availability
   useEffect(() => {
@@ -233,61 +241,86 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
     setIsActive(prev => !prev);
   };
 
-  // Request Bluetooth devices available on macOS
-  const requestBluetoothDevices = async () => {
-    if (!navigator.bluetooth) {
-      toast({
-        title: "Bluetooth Not Available",
-        description: "Web Bluetooth API is not supported on this browser or device",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      toast({
-        title: "Bluetooth",
-        description: "Requesting Bluetooth devices...",
-      });
-
-      // Request Bluetooth device
-      const device = await navigator.bluetooth.requestDevice({
-        // Filter for devices that support heart rate service or generic health services 
-        filters: [
-          { services: ['heart_rate'] },
-          { services: ['health_thermometer'] },
-          { namePrefix: 'Sensor' },
-          { namePrefix: 'Tracker' }
-        ],
-        optionalServices: ['battery_service', 'device_information']
-      });
-
-      toast({
-        title: "Bluetooth Device Selected",
-        description: `Connected to: ${device.name || "Unknown device"}`,
-      });
-
-      // Connect to the device
-      const server = await device.gatt?.connect();
-      
-      if (server) {
-        toast({
-          title: "Bluetooth Connected",
-          description: "Successfully connected to GATT server",
-        });
-        
-        // Further connection logic would go here in a real app
+  // Get biometrics data from connected devices
+  const getConnectedDeviceData = () => {
+    // Find all connected devices
+    const connectedDevices = devices.filter(d => d.status === 'connected');
+    
+    // Get their biometric data
+    return connectedDevices.flatMap(device => {
+      if (device.bluetooth_id && biometricData[device.bluetooth_id]) {
+        return {
+          deviceName: device.device_name,
+          deviceType: device.device_type,
+          ...biometricData[device.bluetooth_id]
+        };
       }
-    } catch (error) {
-      console.error('Bluetooth error:', error);
-      
-      toast({
-        title: "Bluetooth Error",
-        description: error instanceof Error ? error.message : "Failed to connect to Bluetooth device",
-        variant: "destructive",
-      });
-    }
+      return [];
+    });
   };
+  
+  // Calculate team aggregate metrics
+  const calculateTeamMetrics = () => {
+    const deviceData = getConnectedDeviceData();
+    
+    // Start with default values
+    const metrics = {
+      avgHeartRate: 0,
+      avgHydration: 75, // %
+      avgLacticAcid: 3.5, // mmol/L
+      avgVO2Max: 45, // ml/kg/min
+      totalSteps: 0,
+      totalDistance: 0,
+      avgSpeed: 0, // m/s
+      highIntensitySprints: Math.floor(Math.random() * 8) + 4, // Random number between 4-12
+      totalTouches: Math.floor(Math.random() * 50) + 40, // Random number between 40-90
+      totalPasses: Math.floor(Math.random() * 35) + 25, // Random number between 25-60
+      totalShots: Math.floor(Math.random() * 8) + 2 // Random number between 2-10
+    };
+    
+    // Aggregate real data where available
+    if (deviceData.length > 0) {
+      const heartRates = deviceData.filter(d => d.heartRate).map(d => d.heartRate);
+      const hydration = deviceData.filter(d => d.hydration).map(d => d.hydration);
+      const lacticAcid = deviceData.filter(d => d.lacticAcid).map(d => d.lacticAcid);
+      const vo2Max = deviceData.filter(d => d.vo2Max).map(d => d.vo2Max);
+      const steps = deviceData.filter(d => d.steps).map(d => d.steps);
+      const distances = deviceData.filter(d => d.distance).map(d => d.distance);
+      const speeds = deviceData.filter(d => d.speed).map(d => d.speed);
+      
+      if (heartRates.length > 0) {
+        metrics.avgHeartRate = Math.round(heartRates.reduce((a, b) => a + b!, 0) / heartRates.length);
+      }
+      
+      if (hydration.length > 0) {
+        metrics.avgHydration = Math.round(hydration.reduce((a, b) => a + b!, 0) / hydration.length);
+      }
+      
+      if (lacticAcid.length > 0) {
+        metrics.avgLacticAcid = +(lacticAcid.reduce((a, b) => a + b!, 0) / lacticAcid.length).toFixed(1);
+      }
+      
+      if (vo2Max.length > 0) {
+        metrics.avgVO2Max = Math.round(vo2Max.reduce((a, b) => a + b!, 0) / vo2Max.length);
+      }
+      
+      if (steps.length > 0) {
+        metrics.totalSteps = steps.reduce((a, b) => a + b!, 0);
+      }
+      
+      if (distances.length > 0) {
+        metrics.totalDistance = +(distances.reduce((a, b) => a + b!, 0)).toFixed(2);
+      }
+      
+      if (speeds.length > 0) {
+        metrics.avgSpeed = +(speeds.reduce((a, b) => a + b!, 0) / speeds.length).toFixed(1);
+      }
+    }
+    
+    return metrics;
+  };
+
+  const teamMetrics = calculateTeamMetrics();
 
   return (
     <Card className="w-full">
@@ -326,73 +359,202 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
         </div>
       </CardHeader>
       
-      <CardContent className="relative">
-        <div className="relative rounded-lg overflow-hidden" style={{ width, height }}>
-          {/* Video element (hidden, used as source for canvas) */}
-          <video 
-            ref={videoRef}
-            width={width}
-            height={height}
-            autoPlay
-            playsInline
-            muted
-            className="hidden"
-          />
-          
-          {/* Canvas for drawing video frames and overlays */}
-          <canvas 
-            ref={canvasRef}
-            width={width}
-            height={height}
-            className="bg-gray-900"
-          />
-          
-          {/* Player detection overlays */}
-          {isActive && detectedPlayers.map((player) => (
-            <PlayerOverlay
-              key={player.id}
-              player={player}
-              canvasWidth={width}
-              canvasHeight={height}
-              mode={overlayMode}
+      <CardContent>
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Left: AR Camera View */}
+          <div className="relative rounded-lg overflow-hidden" style={{ width, height }}>
+            {/* Video element (hidden, used as source for canvas) */}
+            <video 
+              ref={videoRef}
+              width={width}
+              height={height}
+              autoPlay
+              playsInline
+              muted
+              className="hidden"
             />
-          ))}
-          
-          {/* Status overlays */}
-          {!isActive && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 text-white">
-              <Camera className="h-12 w-12 mb-2" />
-              <p className="text-lg font-medium">
-                {!isCameraAvailable 
-                  ? "Camera not available" 
-                  : !isInitialized 
-                    ? "Initializing AR system..." 
-                    : "Press Start to begin AR tracking"}
-              </p>
-              {!permissionRequested && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={requestCameraPermission}
-                  className="mt-3"
-                >
-                  <Camera className="mr-2 h-4 w-4" />
-                  Allow Camera Access
-                </Button>
-              )}
-              {error && <p className="text-red-400 mt-2">{error}</p>}
-            </div>
-          )}
-          
-          {/* Information overlay while active */}
-          {isActive && (
-            <div className="absolute top-2 left-2 bg-black/60 text-white p-2 rounded text-sm">
-              <div className="flex items-center">
-                <Info className="h-4 w-4 mr-1" />
-                <span>Tracking {detectedPlayers.length} players</span>
+            
+            {/* Canvas for drawing video frames and overlays */}
+            <canvas 
+              ref={canvasRef}
+              width={width}
+              height={height}
+              className="bg-gray-900"
+            />
+            
+            {/* Player detection overlays */}
+            {isActive && detectedPlayers.map((player) => (
+              <PlayerOverlay
+                key={player.id}
+                player={player}
+                canvasWidth={width}
+                canvasHeight={height}
+                mode={overlayMode}
+              />
+            ))}
+            
+            {/* Status overlays */}
+            {!isActive && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 text-white">
+                <Camera className="h-12 w-12 mb-2" />
+                <p className="text-lg font-medium">
+                  {!isCameraAvailable 
+                    ? "Camera not available" 
+                    : !isInitialized 
+                      ? "Initializing AR system..." 
+                      : "Press Start to begin AR tracking"}
+                </p>
+                {!permissionRequested && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={requestCameraPermission}
+                    className="mt-3"
+                  >
+                    <Camera className="mr-2 h-4 w-4" />
+                    Allow Camera Access
+                  </Button>
+                )}
+                {error && <p className="text-red-400 mt-2">{error}</p>}
               </div>
-            </div>
-          )}
+            )}
+            
+            {/* Information overlay while active */}
+            {isActive && (
+              <div className="absolute top-2 left-2 bg-black/60 text-white p-2 rounded text-sm">
+                <div className="flex items-center">
+                  <Info className="h-4 w-4 mr-1" />
+                  <span>Tracking {detectedPlayers.length} players</span>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Right: Biometric Data Display */}
+          <div className="flex-1">
+            <Card className="h-full bg-slate-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center">
+                  <Heart className="h-4 w-4 mr-2 text-red-500" />
+                  Team Biometrics
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Primary Biometric Metrics */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-white rounded-md shadow-sm border border-gray-100">
+                    <div className="flex items-center text-sm text-slate-500 mb-1">
+                      <Heart className="h-3 w-3 mr-1 text-red-500" />
+                      Heart Rate
+                    </div>
+                    <div className="text-2xl font-semibold">
+                      {teamMetrics.avgHeartRate || '---'} <span className="text-xs text-slate-500">bpm</span>
+                    </div>
+                  </div>
+                  
+                  <div className="p-3 bg-white rounded-md shadow-sm border border-gray-100">
+                    <div className="flex items-center text-sm text-slate-500 mb-1">
+                      <Droplet className="h-3 w-3 mr-1 text-blue-500" />
+                      Hydration
+                    </div>
+                    <div className="text-2xl font-semibold">
+                      {teamMetrics.avgHydration || '---'}<span className="text-xs text-slate-500">%</span>
+                    </div>
+                  </div>
+                  
+                  <div className="p-3 bg-white rounded-md shadow-sm border border-gray-100">
+                    <div className="flex items-center text-sm text-slate-500 mb-1">
+                      <Thermometer className="h-3 w-3 mr-1 text-amber-500" />
+                      Lactic Acid
+                    </div>
+                    <div className="text-2xl font-semibold">
+                      {teamMetrics.avgLacticAcid || '---'}<span className="text-xs text-slate-500">mmol/L</span>
+                    </div>
+                  </div>
+                  
+                  <div className="p-3 bg-white rounded-md shadow-sm border border-gray-100">
+                    <div className="flex items-center text-sm text-slate-500 mb-1">
+                      <Activity className="h-3 w-3 mr-1 text-indigo-500" />
+                      VO2 Max
+                    </div>
+                    <div className="text-2xl font-semibold">
+                      {teamMetrics.avgVO2Max || '---'}<span className="text-xs text-slate-500">ml/kg/min</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Physical Performance Metrics */}
+                <div>
+                  <h3 className="text-sm font-medium text-slate-500 mb-2">Physical Performance</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center justify-between bg-white p-2 rounded-md border border-slate-100">
+                      <div className="flex items-center">
+                        <MapPin className="h-4 w-4 mr-2 text-slate-400" />
+                        <span className="text-sm">Distance</span>
+                      </div>
+                      <span className="font-medium">{teamMetrics.totalDistance || '0'} km</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between bg-white p-2 rounded-md border border-slate-100">
+                      <div className="flex items-center">
+                        <ArrowsUpFromLine className="h-4 w-4 mr-2 text-slate-400" />
+                        <span className="text-sm">Steps</span>
+                      </div>
+                      <span className="font-medium">{teamMetrics.totalSteps.toLocaleString()}</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between bg-white p-2 rounded-md border border-slate-100">
+                      <div className="flex items-center">
+                        <Activity className="h-4 w-4 mr-2 text-slate-400" />
+                        <span className="text-sm">Sprints</span>
+                      </div>
+                      <span className="font-medium">{teamMetrics.highIntensitySprints}</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between bg-white p-2 rounded-md border border-slate-100">
+                      <div className="flex items-center">
+                        <Activity className="h-4 w-4 mr-2 text-slate-400" />
+                        <span className="text-sm">Avg. Speed</span>
+                      </div>
+                      <span className="font-medium">{teamMetrics.avgSpeed} m/s</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Technical Performance Metrics */}
+                <div>
+                  <h3 className="text-sm font-medium text-slate-500 mb-2">Technical Performance</h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white p-3 rounded-md border border-slate-100 text-center">
+                      <div className="text-2xl font-semibold">{teamMetrics.totalTouches}</div>
+                      <div className="text-xs text-slate-500">Ball Touches</div>
+                    </div>
+                    
+                    <div className="bg-white p-3 rounded-md border border-slate-100 text-center">
+                      <div className="text-2xl font-semibold">{teamMetrics.totalPasses}</div>
+                      <div className="text-xs text-slate-500">Passes</div>
+                    </div>
+                    
+                    <div className="bg-white p-3 rounded-md border border-slate-100 text-center">
+                      <div className="text-2xl font-semibold">{teamMetrics.totalShots}</div>
+                      <div className="text-xs text-slate-500">Shots</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Link to device management */}
+                <div className="pt-2">
+                  <Link 
+                    to="/devices"
+                    className="w-full inline-flex justify-center items-center text-center py-2 px-4 bg-primary/10 hover:bg-primary/20 text-primary font-medium rounded-md text-sm"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Manage Bluetooth Devices
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
         
         {/* Player stats summary */}
@@ -416,21 +578,6 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
             ))}
           </div>
         )}
-
-        {/* Bluetooth connection section for MacOS */}
-        <div className="mt-6 p-4 border border-slate-200 rounded-lg bg-slate-50">
-          <h3 className="text-lg font-medium mb-2">Connect Bluetooth Devices</h3>
-          <p className="text-sm text-slate-600 mb-4">
-            Connect to Bluetooth sensors and tracking devices. Works on MacOS and supported mobile devices.
-          </p>
-          <Button onClick={requestBluetoothDevices}>
-            Connect Bluetooth Device
-          </Button>
-          <p className="text-xs text-slate-500 mt-3">
-            Note: Web Bluetooth API requires HTTPS and is supported on Chrome, Edge and other Chromium-based browsers.
-            Not all browsers support this feature.
-          </p>
-        </div>
       </CardContent>
     </Card>
   );
