@@ -27,6 +27,7 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
   const [isCameraAvailable, setIsCameraAvailable] = useState(false);
   const [overlayMode, setOverlayMode] = useState<'basic' | 'detailed' | 'biometrics'>('basic');
   const [permissionRequested, setPermissionRequested] = useState(false);
+  const [isBluetoothAvailable, setIsBluetoothAvailable] = useState(false);
   
   const {
     isInitialized,
@@ -63,6 +64,25 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
     };
     
     checkCameraAvailability();
+    
+    // Check Bluetooth availability
+    const checkBluetoothAvailability = async () => {
+      try {
+        if (navigator.bluetooth) {
+          const available = await navigator.bluetooth.getAvailability();
+          setIsBluetoothAvailable(available);
+          console.log("Bluetooth available:", available);
+        } else {
+          console.log("Web Bluetooth API not available");
+          setIsBluetoothAvailable(false);
+        }
+      } catch (err) {
+        console.error("Bluetooth check error:", err);
+        setIsBluetoothAvailable(false);
+      }
+    };
+    
+    checkBluetoothAvailability();
   }, []);
 
   // Explicitly request camera permissions when the component mounts
