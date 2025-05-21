@@ -86,7 +86,7 @@ const DrawingCanvas = ({
     ctx.drawImage(video, 0, 0, width, height);
 
     try {
-      const predictions = await model.detect(detectionCanvas);
+      const predictions = await model.detectObjects(detectionCanvas);
 
       // Clear previous detections
       const objects = canvas.getObjects() as CustomFabricObject[];

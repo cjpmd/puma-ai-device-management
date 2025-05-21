@@ -1,10 +1,9 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/components/ui/use-toast";
-import { Camera, CameraOff, Layers, Square, Play, Stop, Info, User } from 'lucide-react';
+import { Camera, Square, Play, Info, User, Layers } from 'lucide-react';
 import { useAugmentedReality, DetectedPlayer } from './hooks/useAugmentedReality';
 import PlayerOverlay from './PlayerOverlay';
 
@@ -196,7 +195,7 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
           >
             {isActive ? (
               <>
-                <Stop className="mr-2 h-4 w-4" /> Stop
+                <Square className="mr-2 h-4 w-4" /> Stop
               </>
             ) : (
               <>
