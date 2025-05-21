@@ -33,10 +33,11 @@ export const useAugmentedReality = () => {
         setIsProcessing(true);
         
         // Load the object detection model from Hugging Face
+        // Use "wasm" as the device parameter instead of "cpu"
         const detector = await pipeline(
           'object-detection',
           'Xenova/detr-resnet-50',
-          { device: 'cpu' }
+          { device: 'wasm' } // Changed from 'cpu' to 'wasm'
         );
         
         detectorRef.current = detector;
@@ -117,16 +118,15 @@ export const useAugmentedReality = () => {
   // Enrich player detections with data from the database
   const enrichPlayerData = async (detections: DetectedPlayer[]) => {
     try {
-      // In a real system, we'd look up players by shirt number
-      // For now, let's simulate this with mock data
+      // Process each detection to find matching players by squad number
       const enhanced = await Promise.all(
         detections.map(async (player) => {
           if (!player.shirtNumber) return player;
           
-          // Try to fetch real player data if possible
+          // Try to fetch real player data based on squad number
           const { data, error } = await supabase
             .from('players')
-            .select('id, name, player_type')
+            .select('id, name, player_type, squad_number')
             .eq('squad_number', player.shirtNumber)
             .limit(1)
             .single();
@@ -157,6 +157,7 @@ export const useAugmentedReality = () => {
           return {
             ...player,
             name: data.name,
+            shirtNumber: data.squad_number, // Add squad number from database
             position: data.player_type === 'GOALKEEPER' ? 'GK' : ['DF', 'MF', 'FW'][Math.floor(Math.random() * 3)],
             biometrics: {
               heartRate,

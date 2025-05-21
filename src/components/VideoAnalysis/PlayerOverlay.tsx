@@ -48,9 +48,9 @@ const PlayerOverlay: React.FC<PlayerOverlayProps> = ({
       style={styles}
       className={`border-2 ${getBorderColor()} rounded-md flex flex-col justify-between`}
     >
-      {/* Top label */}
-      <div className="bg-black/70 text-white text-xs px-1 py-0.5 rounded-tl rounded-br self-start">
-        #{player.shirtNumber}
+      {/* Top label - Make squad number more prominent */}
+      <div className="bg-black/70 text-white px-1 py-0.5 rounded-tl rounded-br self-start">
+        <span className="font-bold text-sm">#{player.shirtNumber}</span>
       </div>
       
       {/* Bottom data panel */}

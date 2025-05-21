@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
   const [isActive, setIsActive] = useState(false);
   const [isCameraAvailable, setIsCameraAvailable] = useState(false);
   const [overlayMode, setOverlayMode] = useState<'basic' | 'detailed' | 'biometrics'>('basic');
+  const [permissionRequested, setPermissionRequested] = useState(false);
   
   const {
     isInitialized,
@@ -62,6 +64,33 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
     
     checkCameraAvailability();
   }, []);
+
+  // Explicitly request camera permissions when the component mounts
+  useEffect(() => {
+    if (!permissionRequested) {
+      requestCameraPermission();
+    }
+  }, []);
+
+  const requestCameraPermission = async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ video: true });
+      setPermissionRequested(true);
+      setIsCameraAvailable(true);
+      toast({
+        title: "Camera Access Granted",
+        description: "You can now use the AR player tracking",
+      });
+    } catch (err) {
+      console.error("Permission request failed:", err);
+      setPermissionRequested(true);
+      toast({
+        title: "Camera Permission Denied",
+        description: "Please enable camera access in your browser settings",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Handle camera activation/deactivation
   useEffect(() => {
@@ -249,6 +278,17 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
                     ? "Initializing AR system..." 
                     : "Press Start to begin AR tracking"}
               </p>
+              {!permissionRequested && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={requestCameraPermission}
+                  className="mt-3"
+                >
+                  <Camera className="mr-2 h-4 w-4" />
+                  Allow Camera Access
+                </Button>
+              )}
               {error && <p className="text-red-400 mt-2">{error}</p>}
             </div>
           )}
@@ -272,8 +312,11 @@ const AugmentedRealityCamera: React.FC<AugmentedRealityCameraProps> = ({
                 key={player.id}
                 className="bg-slate-100 p-3 rounded-lg"
               >
-                <div className="font-medium">
-                  #{player.shirtNumber} {player.name || `Player ${player.id + 1}`}
+                <div className="font-medium flex items-center">
+                  <span className="bg-gray-800 text-white w-6 h-6 flex items-center justify-center rounded-full mr-2">
+                    {player.shirtNumber || '?'}
+                  </span>
+                  {player.name || `Player ${player.id + 1}`}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {player.position || 'Unknown'} · {player.biometrics?.heartRate || '---'} bpm
