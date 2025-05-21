@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Activity, Target, ArrowRight, CircleDot, Hand, Map } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface PlayerMovementMapProps {
   gpsData?: Array<[number, number, number]>; // [timestamp, latitude, longitude]
@@ -316,7 +318,8 @@ const PlayerMovementMap = ({
       
       // Clean up any subscriptions
       if (isLiveMode) {
-        supabase.removeChannel('gps-updates');
+        // Fix: Don't use string for channel, use the stored channel reference for removal
+        supabase.removeAllChannels();
       }
     };
   }, [isIndoorMode, showThirds, mapboxToken, sessionId, isLiveMode]);
@@ -344,8 +347,9 @@ const PlayerMovementMap = ({
       mapboxgl.accessToken = mapboxToken;
       
       if (!map.current) {
-        const center = gpsData?.length 
-          ? [gpsData[0][2], gpsData[0][1]] 
+        // Fix: Ensure we have a valid center point with correct format
+        const center: [number, number] = gpsData?.length 
+          ? [gpsData[0][2], gpsData[0][1]]
           : [-0.1278, 51.5074]; // Default to London if no data
         
         map.current = new mapboxgl.Map({
@@ -504,6 +508,7 @@ const PlayerMovementMap = ({
   const setupRealTimeDataSubscription = () => {
     console.log('Setting up real-time data subscription');
     
+    // Store the channel reference so we can properly clean it up later
     const gpsChannel = supabase
       .channel('gps-updates')
       .on(
@@ -538,7 +543,7 @@ const PlayerMovementMap = ({
       const longitude = payload.new.y; // Using Y field for longitude
       
       setGpsData(currentData => {
-        const newData = [...currentData, [timestamp, latitude, longitude]];
+        const newData = [...currentData, [timestamp, latitude, longitude] as [number, number, number]];
         updateMapWithNewCoordinate(timestamp, latitude, longitude);
         return newData;
       });
@@ -690,7 +695,9 @@ const PlayerMovementMap = ({
       
       // Add new point
       setGpsData(currentData => {
-        const newData = [...currentData, [timestamp, newLat, newLng]];
+        // Fix: Ensure we're returning the correct type: Array<[number, number, number]>
+        const newPoint: [number, number, number] = [timestamp, newLat, newLng];
+        const newData = [...currentData, newPoint];
         updateMapWithNewCoordinate(timestamp, newLat, newLng);
         return newData;
       });
