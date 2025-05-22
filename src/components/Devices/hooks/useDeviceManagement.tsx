@@ -336,8 +336,8 @@ export const useDeviceManagement = () => {
       
       // Set up notification handler
       characteristic.addEventListener('characteristicvaluechanged', (event) => {
-        // Use type assertion to cast to the expected type
-        const target = event.target as BluetoothRemoteGATTCharacteristic;
+        // Use a proper type assertion with unknown first
+        const target = (event.target as unknown) as BluetoothRemoteGATTCharacteristic;
         const value = target.value;
         
         if (value) {
@@ -394,8 +394,8 @@ export const useDeviceManagement = () => {
       
       // Set up notification handler
       characteristic.addEventListener('characteristicvaluechanged', (event) => {
-        // Use type assertion to cast to the expected type
-        const target = event.target as BluetoothRemoteGATTCharacteristic;
+        // Use a proper type assertion with unknown first
+        const target = (event.target as unknown) as BluetoothRemoteGATTCharacteristic;
         const value = target.value;
         
         if (value) {
