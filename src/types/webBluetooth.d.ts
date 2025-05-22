@@ -5,9 +5,7 @@
 interface BluetoothDevice {
   id: string;
   name?: string;
-  gatt?: {
-    connect(): Promise<BluetoothRemoteGATTServer>;
-  };
+  gatt?: BluetoothRemoteGATTServer;
   watchAdvertisements(): Promise<void>;
   unwatchAdvertisements(): void;
   addEventListener(type: string, listener: EventListener): void;
@@ -105,4 +103,9 @@ type BluetoothCharacteristicUUID =
 // Extend the Navigator interface to include bluetooth property
 interface Navigator {
   bluetooth?: Bluetooth;
+}
+
+// Define interfaces for event handling with the Bluetooth API
+interface CharacteristicValueChangedEvent extends Event {
+  target: BluetoothRemoteGATTCharacteristic;
 }

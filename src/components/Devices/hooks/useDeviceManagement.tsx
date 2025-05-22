@@ -217,7 +217,7 @@ export const useDeviceManagement = () => {
       const deviceToRemove = devices.find(d => d.id === deviceId);
       if (deviceToRemove?.bluetooth_id && connectedDevices.current.has(deviceToRemove.bluetooth_id)) {
         const btDevice = connectedDevices.current.get(deviceToRemove.bluetooth_id);
-        if (btDevice?.gatt?.connected) {
+        if (btDevice?.gatt && btDevice.gatt.connected) {
           btDevice.gatt.disconnect();
         }
         connectedDevices.current.delete(deviceToRemove.bluetooth_id);
@@ -298,12 +298,14 @@ export const useDeviceManagement = () => {
         ));
         
         // Also update in database
+        const updateData: Record<string, any> = { 
+          status: 'connected', 
+          last_connected: new Date().toISOString() 
+        };
+        
         await supabase
           .from('devices')
-          .update({ 
-            status: 'connected', 
-            last_connected: new Date().toISOString() 
-          })
+          .update(updateData)
           .eq('id', device.id);
         
         toast({
@@ -334,6 +336,7 @@ export const useDeviceManagement = () => {
       
       // Set up notification handler
       characteristic.addEventListener('characteristicvaluechanged', (event) => {
+        // Use type assertion to cast to the expected type
         const target = event.target as BluetoothRemoteGATTCharacteristic;
         const value = target.value;
         
@@ -391,6 +394,7 @@ export const useDeviceManagement = () => {
       
       // Set up notification handler
       characteristic.addEventListener('characteristicvaluechanged', (event) => {
+        // Use type assertion to cast to the expected type
         const target = event.target as BluetoothRemoteGATTCharacteristic;
         const value = target.value;
         
@@ -436,7 +440,7 @@ export const useDeviceManagement = () => {
       if (device.bluetooth_id && connectedDevices.current.has(device.bluetooth_id)) {
         const btDevice = connectedDevices.current.get(device.bluetooth_id);
         
-        if (btDevice?.gatt?.connected) {
+        if (btDevice?.gatt && btDevice.gatt.connected) {
           btDevice.gatt.disconnect();
           
           toast({
@@ -450,9 +454,13 @@ export const useDeviceManagement = () => {
           ));
           
           // Also update in database
+          const updateData: Record<string, any> = { 
+            status: 'disconnected' 
+          };
+          
           await supabase
             .from('devices')
-            .update({ status: 'disconnected' })
+            .update(updateData)
             .eq('id', device.id);
         }
       }
@@ -504,7 +512,7 @@ export const useDeviceManagement = () => {
     // Clean up by disconnecting all devices when unmounting
     return () => {
       connectedDevices.current.forEach(device => {
-        if (device.gatt?.connected) {
+        if (device.gatt && device.gatt.connected) {
           device.gatt.disconnect();
         }
       });

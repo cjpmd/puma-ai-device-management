@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/components/ui/use-toast";
-import { Camera, Square, Play, Info, User, Layers, Heart, Thermometer, Droplet, Activity, MapPin, ArrowsUpFromLine } from 'lucide-react';
+import { Camera, Square, Play, Info, User, Layers, Heart, Thermometer, Droplet, Activity, MapPin, ArrowsUpFromLine, Settings } from 'lucide-react';
 import { useAugmentedReality, DetectedPlayer } from './hooks/useAugmentedReality';
 import PlayerOverlay from './PlayerOverlay';
 import { useDeviceManagement } from '../Devices/hooks/useDeviceManagement';
